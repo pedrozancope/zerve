@@ -150,9 +150,15 @@ export function useUpdateSchedule() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: ScheduleUpdate & { id: string }) => {
+      // Sempre limpar last_executed_at ao editar para permitir nova execução
+      const updateData: any = {
+        ...updates,
+        last_executed_at: null,
+      }
+
       const { data, error } = await supabase
         .from("schedules")
-        .update(updates as any)
+        .update(updateData)
         .eq("id", id)
         .select(
           `
