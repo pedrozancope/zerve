@@ -8,6 +8,10 @@ import {
   Edit,
   PlayCircle,
   Loader2,
+  Zap,
+  Target,
+  Repeat,
+  CalendarClock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { DAY_NAMES_PT, getNextExecutionDates } from "@/lib/cron"
+import { DAY_NAMES_PT } from "@/lib/cron"
 import { TIME_SLOTS } from "@/lib/constants"
 import {
   useSchedules,
@@ -46,6 +50,87 @@ export default function Schedules() {
   const getTimeSlotDisplay = (externalId: string) => {
     const slot = TIME_SLOTS.find((s) => s.externalId === externalId)
     return slot?.displayName || "-"
+  }
+
+  const getFrequencyLabel = (frequency: string) => {
+    const labels: Record<string, string> = {
+      once: "Uma vez",
+      weekly: "Semanal",
+      biweekly: "Quinzenal",
+      monthly: "Mensal",
+    }
+    return labels[frequency] || frequency
+  }
+
+  const getNextTriggerDate = (schedule: any) => {
+    if (schedule.triggerMode === "trigger_date" && schedule.triggerDatetime) {
+      const triggerDate = new Date(schedule.triggerDatetime)
+      const now = new Date()
+      if (triggerDate > now && schedule.isActive) {
+        return triggerDate
+      }
+      return null
+    }
+
+    // Para modo reservation_date (recorrente)
+    if (schedule.triggerMode === "reservation_date" && schedule.isActive) {
+      const now = new Date()
+      const triggerDay = schedule.triggerDayOfWeek
+      const [hours, minutes] = schedule.triggerTime.split(":").map(Number)
+
+      // Calcula próximo dia da semana
+      let daysUntilTrigger = (triggerDay - now.getDay() + 7) % 7
+      if (daysUntilTrigger === 0) {
+        // Se é hoje, verifica se já passou o horário
+        const todayTrigger = new Date(now)
+        todayTrigger.setHours(hours, minutes, 0, 0)
+        if (todayTrigger <= now) {
+          daysUntilTrigger = 7
+        }
+      }
+
+      const nextTrigger = new Date(now)
+      nextTrigger.setDate(now.getDate() + daysUntilTrigger)
+      nextTrigger.setHours(hours, minutes, 0, 0)
+      return nextTrigger
+    }
+
+    return null
+  }
+
+  const formatDateTime = (date: Date) => {
+    return date.toLocaleString("pt-BR", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  const getNextReservationDates = (
+    reservationDayOfWeek: number,
+    count: number = 3
+  ) => {
+    const results: Date[] = []
+    const now = new Date()
+    const currentDay = now.getDay()
+
+    // Calcula dias até a próxima ocorrência do dia da semana
+    let daysUntil = (reservationDayOfWeek - currentDay + 7) % 7
+    if (daysUntil === 0) {
+      daysUntil = 7 // Se é hoje, pega próxima semana
+    }
+
+    // Gera as próximas N datas
+    for (let i = 0; i < count; i++) {
+      const nextDate = new Date(now)
+      nextDate.setDate(now.getDate() + daysUntil + i * 7)
+      nextDate.setHours(0, 0, 0, 0)
+      results.push(nextDate)
+    }
+
+    return results
   }
 
   const handleToggle = (id: string, isActive: boolean) => {
@@ -179,47 +264,26 @@ export default function Schedules() {
       ) : (
         <div className="space-y-4">
           {schedules.map((schedule) => {
-            const nextDates = getNextExecutionDates(
+            const nextReservations = getNextReservationDates(
               schedule.reservationDayOfWeek,
-              2
+              3
             )
+            const nextTrigger = getNextTriggerDate(schedule)
 
             return (
               <Card key={schedule.id}>
                 <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-lg">
-                          {schedule.name}
-                        </h3>
-                        <Badge
-                          variant={schedule.isActive ? "success" : "secondary"}
-                        >
-                          {schedule.isActive ? "Ativo" : "Inativo"}
-                        </Badge>
-                      </div>
-
-                      <div className="flex flex-wrap gap-4 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Calendar className="h-4 w-4" />
-                          <span>
-                            {DAY_NAMES_PT[schedule.reservationDayOfWeek]}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          <span>{getTimeSlotDisplay(schedule.timeSlotId)}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {nextDates.map((date, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {date.reservationDate.toLocaleDateString("pt-BR")}
-                          </Badge>
-                        ))}
-                      </div>
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-semibold text-lg">
+                        {schedule.name}
+                      </h3>
+                      <Badge
+                        variant={schedule.isActive ? "success" : "secondary"}
+                      >
+                        {schedule.isActive ? "Ativo" : "Inativo"}
+                      </Badge>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -262,6 +326,114 @@ export default function Schedules() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Destaque: Reserva */}
+                  <div className="mb-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center gap-2 text-xs text-primary font-semibold mb-2">
+                      <Target className="h-4 w-4" />
+                      <span>RESERVA CONFIGURADA</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-bold text-primary">
+                        {DAY_NAMES_PT[schedule.reservationDayOfWeek]}
+                      </span>
+                      <span className="text-lg text-muted-foreground">•</span>
+                      <span className="text-xl font-semibold">
+                        {schedule.timeSlot?.displayName || 
+                         getTimeSlotDisplay(schedule.timeSlotId)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {/* Frequência */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                        <Repeat className="h-3.5 w-3.5" />
+                        <span>FREQUÊNCIA</span>
+                      </div>
+                      <p className="text-sm font-medium">
+                        {getFrequencyLabel(schedule.frequency)}
+                      </p>
+                    </div>
+
+                    {/* Próximo Disparo */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                        <Zap className="h-3.5 w-3.5" />
+                        <span>PRÓXIMO DISPARO</span>
+                      </div>
+                      {nextTrigger && schedule.isActive ? (
+                        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                          {formatDateTime(nextTrigger)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {schedule.isActive ? "N/A" : "Inativo"}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Modo */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        <span>MODO</span>
+                      </div>
+                      <p className="text-sm font-medium">
+                        {schedule.triggerMode === "trigger_date"
+                          ? "Data Específica"
+                          : "Recorrente"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Próximas Reservas */}
+                  {schedule.triggerMode === "reservation_date" &&
+                    schedule.isActive && (
+                      <div className="pt-3 border-t">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-2">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>PRÓXIMAS RESERVAS</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {nextReservations.map((date, i) => (
+                            <Badge
+                              key={i}
+                              variant="outline"
+                              className="text-xs"
+                            >
+                              {date.toLocaleDateString("pt-BR", {
+                                weekday: "short",
+                                day: "2-digit",
+                                month: "2-digit",
+                              })}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Data Específica para modo trigger_date */}
+                  {schedule.triggerMode === "trigger_date" &&
+                    schedule.triggerDatetime && (
+                      <div className="pt-3 border-t">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-2">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>DISPARO PROGRAMADO</span>
+                        </div>
+                        <p className="text-sm">
+                          {new Date(schedule.triggerDatetime).toLocaleString(
+                            "pt-BR",
+                            {
+                              dateStyle: "full",
+                              timeStyle: "short",
+                            }
+                          )}
+                        </p>
+                      </div>
+                    )}
                 </CardContent>
               </Card>
             )

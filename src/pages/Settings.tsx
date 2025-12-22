@@ -145,8 +145,10 @@ export default function Settings() {
   }
 
   const maskToken = (token: string) => {
-    if (token.length <= 8) return "••••••••"
-    return "•".repeat(token.length - 8) + token.slice(-8)
+    if (!token) return "••••••••"
+    if (token.length <= 12) return "••••••••"
+    // Mostrar apenas primeiros 8 e últimos 8 caracteres
+    return token.slice(0, 8) + "•••••••••••••••" + token.slice(-8)
   }
 
   if (loadingToken) {
@@ -220,15 +222,18 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Token Atual</Label>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 p-3 rounded-md bg-muted text-sm font-mono truncate">
-                    {showToken
-                      ? tokenConfig?.value
-                      : maskToken(tokenConfig?.value || "")}
-                  </code>
+                  <div className="flex-1 p-3 rounded-md bg-muted overflow-hidden">
+                    <code className="text-sm font-mono break-all">
+                      {showToken
+                        ? tokenConfig?.value
+                        : maskToken(tokenConfig?.value || "")}
+                    </code>
+                  </div>
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => setShowToken(!showToken)}
+                    className="shrink-0"
                   >
                     {showToken ? (
                       <EyeOff className="h-4 w-4" />

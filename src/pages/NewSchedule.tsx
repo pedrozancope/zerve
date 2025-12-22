@@ -558,60 +558,64 @@ export default function NewSchedule() {
               </div>
 
               {/* Cron Expression */}
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">
-                  Cron Expression (AWS EventBridge)
-                </Label>
-                <code className="block p-3 rounded-lg bg-muted text-sm font-mono">
-                  {cronExpression}
-                </code>
-              </div>
-
-              {/* Next Executions */}
-              <div className="space-y-3">
-                <Label>Próximas execuções</Label>
+              {triggerMode === "reservation_date" && (
                 <div className="space-y-2">
-                  {nextDates.map((date, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-warning/10 text-warning">
-                          <span className="text-[10px] font-medium">
-                            {DAY_NAMES_PT_SHORT[date.triggerDate.getDay()]}
-                          </span>
-                          <span className="text-sm font-bold">
-                            {date.triggerDate.getDate()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">
-                            🔔 Disparo:{" "}
-                            {date.triggerDate.toLocaleDateString("pt-BR")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {triggerHour.toString().padStart(2, "0")}:
-                            {triggerMinute.toString().padStart(2, "0")} BRT
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="success">
-                          🎾{" "}
-                          {date.reservationDate.toLocaleDateString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                          })}
-                        </Badge>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {selectedTimeSlot?.displayName}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                  <Label className="text-muted-foreground">
+                    Cron Expression (AWS EventBridge)
+                  </Label>
+                  <code className="block p-3 rounded-lg bg-muted text-sm font-mono">
+                    {cronExpression}
+                  </code>
                 </div>
-              </div>
+              )}
+
+              {/* Next Executions - Apenas para modo recorrente */}
+              {triggerMode === "reservation_date" && (
+                <div className="space-y-3">
+                  <Label>Próximas execuções</Label>
+                  <div className="space-y-2">
+                    {nextDates.map((date, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-warning/10 text-warning">
+                            <span className="text-[10px] font-medium">
+                              {DAY_NAMES_PT_SHORT[date.triggerDate.getDay()]}
+                            </span>
+                            <span className="text-sm font-bold">
+                              {date.triggerDate.getDate()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">
+                              🔔 Disparo:{" "}
+                              {date.triggerDate.toLocaleDateString("pt-BR")}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {triggerHour.toString().padStart(2, "0")}:
+                              {triggerMinute.toString().padStart(2, "0")} BRT
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant="success">
+                            🎾{" "}
+                            {date.reservationDate.toLocaleDateString("pt-BR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                            })}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {selectedTimeSlot?.displayName}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Info */}
               <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground">
