@@ -41,19 +41,27 @@ export function getTriggerDayOfWeek(reservationDayOfWeek: number): number {
 }
 
 /**
- * Gera a cron expression para EventBridge
- * Dispara às 00:01 BRT (03:01 UTC) no dia correto
+ * Gera a cron expression para EventBridge/pg_cron
+ * Por padrão dispara às 00:01 BRT (03:01 UTC) no dia correto
  *
  * @param reservationDayOfWeek - Dia da reserva (0=Dom, 6=Sáb)
+ * @param hour - Hora do disparo (BRT), padrão 0
+ * @param minute - Minuto do disparo, padrão 1
  * @returns Cron expression para AWS EventBridge
  */
-export function generateCronExpression(reservationDayOfWeek: number): string {
+export function generateCronExpression(
+  reservationDayOfWeek: number,
+  hour: number = 0,
+  minute: number = 1
+): string {
   const triggerDay = getTriggerDayOfWeek(reservationDayOfWeek)
   const dayName = DAY_NAMES[triggerDay]
 
-  // 00:01 BRT = 03:01 UTC (considerando UTC-3)
+  // Converter BRT para UTC (adiciona 3 horas)
+  const utcHour = (hour + 3) % 24
+
   // Formato EventBridge: cron(minutos hora dia-do-mês mês dia-da-semana ano)
-  return `cron(1 3 ? * ${dayName} *)`
+  return `cron(${minute} ${utcHour} ? * ${dayName} *)`
 }
 
 /**

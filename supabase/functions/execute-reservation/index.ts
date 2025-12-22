@@ -15,9 +15,11 @@ const corsHeaders = {
 // =============================================================================
 interface ExecuteReservationPayload {
   scheduleId?: string
-  // Modo de teste E2E: permite rodar sem um schedule real
+  // Modo de teste E2E: permite rodar sem um schedule real (reserva para HOJE)
   test?: boolean
   hour?: number // horário da reserva (6-21)
+  // Modo Dry Run: executa tudo EXCETO a reserva final (para validar agendamentos)
+  dryRun?: boolean
 }
 
 interface AuthResponse {
@@ -290,26 +292,72 @@ async function sendNotificationEmail(
 function generateSuccessEmailHtml(
   reservationDate: string,
   hour: number,
-  isTest: boolean
+  isTest: boolean,
+  isDryRun: boolean = false
 ): string {
+  const dryRunBanner = isDryRun
+    ? `
+    <div style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f59e0b;">
+      <p style="margin: 0; color: #92400e; font-weight: 600;">🔍 MODO DRY RUN</p>
+      <p style="margin: 4px 0 0; color: #a16207; font-size: 13px;">Esta é uma simulação. Nenhuma reserva real foi efetuada.</p>
+    </div>
+  `
+    : ""
+
+  const testBadge = isTest && !isDryRun ? "(TESTE) " : ""
+  const dryRunBadge = isDryRun ? "[DRY RUN] " : ""
+
   return `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #22c55e;">🎾 Reserva ${
-        isTest ? "(TESTE) " : ""
-      }Confirmada!</h2>
-      <p>Sua reserva de quadra de tênis foi realizada com sucesso.</p>
-      <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
-        <p style="margin: 0;"><strong>Data:</strong> ${reservationDate}</p>
-        <p style="margin: 8px 0 0;"><strong>Horário:</strong> ${hour
-          .toString()
-          .padStart(2, "0")}:00</p>
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+      <!-- Header -->
+      <div style="background: linear-gradient(135deg, ${
+        isDryRun ? "#f59e0b" : "#22c55e"
+      } 0%, ${
+    isDryRun ? "#d97706" : "#16a34a"
+  } 100%); padding: 24px; border-radius: 12px 12px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">🎾 ${dryRunBadge}${testBadge}Reserva Confirmada!</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">
+          ${
+            isDryRun
+              ? "Simulação concluída com sucesso"
+              : "Sua reserva foi realizada com sucesso"
+          }
+        </p>
+      </div>
+      
+      <!-- Main Content -->
+      <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        ${dryRunBanner}
+        
+        <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p style="margin: 0;"><strong>Data:</strong> ${reservationDate}</p>
+          <p style="margin: 8px 0 0;"><strong>Horário:</strong> ${hour
+            .toString()
+            .padStart(2, "0")}:00</p>
+        </div>
+        
         ${
-          isTest
-            ? '<p style="margin: 8px 0 0; color: #f59e0b;"><strong>⚠️ Este foi um teste</strong></p>'
+          isDryRun
+            ? `
+          <div style="background: #f3f4f6; padding: 12px 16px; border-radius: 8px; margin-top: 16px;">
+            <p style="margin: 0; color: #6b7280; font-size: 13px;">
+              ✅ <strong>O que foi validado:</strong> Autenticação, refresh token, configurações do agendamento
+            </p>
+            <p style="margin: 8px 0 0; color: #6b7280; font-size: 13px;">
+              ⏭️ <strong>Não executado:</strong> Chamada à API de reserva
+            </p>
+          </div>
+        `
             : ""
         }
+        
+        <!-- Footer -->
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #9ca3af; font-size: 11px; margin: 0; text-align: center;">
+            🎾 Tennis Scheduler - Reservas Automáticas
+          </p>
+        </div>
       </div>
-      <p style="color: #666; font-size: 12px;">Tennis Scheduler - Reservas automáticas</p>
     </div>
   `
 }
@@ -332,8 +380,10 @@ function generateErrorEmailHtml(
     duration?: number
     scheduleId?: string
     scheduleName?: string
+    isDryRun?: boolean
   }
 ): string {
+  const isDryRun = details?.isDryRun || false
   const stepNames: Record<string, string> = {
     initialization: "Inicialização",
     parsing_payload: "Processamento do Payload",
@@ -353,6 +403,15 @@ function generateErrorEmailHtml(
   const timestamp = new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
   })
+
+  const dryRunBanner = isDryRun
+    ? `
+    <div style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f59e0b;">
+      <p style="margin: 0; color: #92400e; font-weight: 600;">🔍 MODO DRY RUN</p>
+      <p style="margin: 4px 0 0; color: #a16207; font-size: 13px;">Esta é uma simulação. Nenhuma reserva real seria efetuada.</p>
+    </div>
+  `
+    : ""
 
   let apiDetailsHtml = ""
   if (details?.apiStatus || details?.apiMessage || details?.apiResponse) {
@@ -424,6 +483,8 @@ function generateErrorEmailHtml(
       <!-- Main Content -->
       <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
         
+        ${dryRunBanner}
+        
         <!-- Error Summary -->
         <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #ef4444;">
           <h3 style="margin: 0 0 12px 0; color: #991b1b; font-size: 14px;">⚠️ Resumo do Erro</h3>
@@ -490,6 +551,7 @@ serve(async (req) => {
   let reservationHour: number | undefined
   let currentStep = "initialization"
   let isTestMode = false
+  let isDryRun = false
   let schedule: any = null
 
   // Log detalhado para retornar ao cliente
@@ -532,10 +594,12 @@ serve(async (req) => {
     const payload: ExecuteReservationPayload = await req.json()
     scheduleId = payload.scheduleId
     isTestMode = payload.test === true
+    isDryRun = payload.dryRun === true
 
     addLog(currentStep, "Payload recebido", {
       scheduleId,
       isTestMode,
+      isDryRun,
       hour: payload.hour,
     })
 
@@ -677,23 +741,58 @@ serve(async (req) => {
     addLog(currentStep, "Refresh token atualizado no Supabase")
 
     // ==========================================================================
-    // STEP 5: Make reservation via Speed API
+    // STEP 5: Make reservation via Speed API (ou simular em Dry Run)
     // ==========================================================================
     currentStep = "making_reservation"
     const reservationDate = convertReservationDate(isTestMode)
     const idArea = getIdOfArea(reservationHour!)
 
-    addLog(currentStep, "Iniciando reserva na API do Speed...", {
-      reservationDate,
-      reservationHour,
-      idArea,
-    })
-
-    const reservationResponse = await putReservation(
-      accessToken,
-      reservationDate,
-      idArea
+    addLog(
+      currentStep,
+      isDryRun
+        ? "🔍 [DRY RUN] Simulando reserva..."
+        : "Iniciando reserva na API do Speed...",
+      {
+        reservationDate,
+        reservationHour,
+        idArea,
+        isDryRun,
+      }
     )
+
+    let reservationResponse: ReservationApiResponse
+
+    if (isDryRun) {
+      // Em modo Dry Run, simular uma resposta de sucesso
+      reservationResponse = {
+        status: 200,
+        msg: "[DRY RUN] Reserva simulada com sucesso - nenhuma reserva real foi feita",
+        data: [
+          {
+            status: 200,
+            ID_RESERVA_RES: "DRY_RUN_SIMULATED",
+            id_reserva: "DRY_RUN_SIMULATED",
+            simulated: true,
+          },
+        ],
+      }
+      addLog(
+        currentStep,
+        "🔍 [DRY RUN] Reserva simulada - API NÃO foi chamada",
+        {
+          wouldSendTo: "Speed API",
+          wouldSendDate: reservationDate,
+          wouldSendHour: reservationHour,
+          wouldSendIdArea: idArea,
+        }
+      )
+    } else {
+      reservationResponse = await putReservation(
+        accessToken,
+        reservationDate,
+        idArea
+      )
+    }
 
     // ==========================================================================
     // STEP 6: Process reservation response
@@ -726,12 +825,17 @@ serve(async (req) => {
     // ==========================================================================
     const duration = Date.now() - startTime
 
-    addLog("success", "Reserva realizada com sucesso 🥎", {
+    const successMessage = isDryRun
+      ? "🔍 [DRY RUN] Simulação concluída com sucesso - nenhuma reserva real foi feita"
+      : "Reserva realizada com sucesso 🥎"
+
+    addLog("success", successMessage, {
       status,
       msg,
       reservationDate,
       reservationResponse: reservationResult,
       duration,
+      isDryRun,
     })
 
     // Calculate actual reservation date for database (ISO format)
@@ -762,7 +866,9 @@ serve(async (req) => {
         schedule_id: scheduleId || null,
         user_id: userId,
         status: "success",
-        message: isTestMode
+        message: isDryRun
+          ? `[DRY RUN] Simulação concluída - ${msg}`
+          : isTestMode
           ? `[TESTE] Reserva realizada com sucesso - ${msg}`
           : `Reserva realizada com sucesso - ${msg}`,
         request_payload: {
@@ -770,12 +876,13 @@ serve(async (req) => {
           reservationDate,
           idArea,
           isTestMode,
+          isDryRun,
         },
         response_payload: reservationResponse,
         reservation_date: reservationDateISO,
         duration_ms: duration,
-        is_test: isTestMode,
-        test_hour: isTestMode ? reservationHour : null,
+        is_test: isTestMode || isDryRun,
+        test_hour: isTestMode || isDryRun ? reservationHour : null,
       })
       .select()
       .single()
@@ -786,8 +893,8 @@ serve(async (req) => {
       })
     }
 
-    // Save reservation record (apenas se não for teste)
-    if (!isTestMode && scheduleId) {
+    // Save reservation record (apenas se não for teste NEM dry run)
+    if (!isTestMode && !isDryRun && scheduleId) {
       currentStep = "saving_reservation"
       const { error: reservationError } = await supabaseClient
         .from("reservations")
@@ -805,6 +912,31 @@ serve(async (req) => {
         addLog("warning", "Erro ao salvar registro de reserva", {
           error: reservationError.message,
         })
+      }
+
+      // ==========================================================================
+      // DESATIVAR SCHEDULE SE FREQUENCY = 'once'
+      // ==========================================================================
+      if (schedule?.frequency === "once") {
+        const { error: deactivateError } = await supabaseClient
+          .from("schedules")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq("id", scheduleId)
+
+        if (deactivateError) {
+          addLog("warning", "Erro ao desativar schedule 'once'", {
+            error: deactivateError.message,
+          })
+        } else {
+          addLog(
+            "deactivate_schedule",
+            "Schedule 'once' desativado após execução bem-sucedida",
+            {
+              scheduleId,
+              scheduleName: schedule.name,
+            }
+          )
+        }
       }
     }
 
@@ -827,21 +959,30 @@ serve(async (req) => {
       "false"
 
     if (notificationEmail && notifyOnSuccess) {
+      const subjectPrefix = isDryRun
+        ? "🔍 [DRY RUN] "
+        : isTestMode
+        ? "(TESTE) "
+        : ""
       const emailSent = await sendNotificationEmail(
         notificationEmail,
-        `🎾 Reserva ${
-          isTestMode ? "(TESTE) " : ""
-        }Confirmada - ${reservationHour}:00`,
-        generateSuccessEmailHtml(reservationDate, reservationHour!, isTestMode)
+        `🎾 ${subjectPrefix}Reserva Confirmada - ${reservationHour}:00`,
+        generateSuccessEmailHtml(
+          reservationDate,
+          reservationHour!,
+          isTestMode,
+          isDryRun
+        )
       )
       addLog(
         "notification",
         emailSent
-          ? "E-mail de sucesso enviado"
+          ? `E-mail de sucesso enviado${isDryRun ? " (Dry Run)" : ""}`
           : "E-mail não enviado (sem API key)",
         {
           email: notificationEmail,
           sent: emailSent,
+          isDryRun,
         }
       )
     }
@@ -853,6 +994,7 @@ serve(async (req) => {
         data: reservationResult,
         duration,
         isTestMode,
+        isDryRun,
         executionLogId: executionLogData?.id,
         schedule: schedule
           ? {
@@ -959,11 +1101,14 @@ serve(async (req) => {
         "false"
 
       if (notificationEmail && notifyOnFailure) {
+        const subjectPrefix = isDryRun
+          ? "🔍 [DRY RUN] "
+          : isTestMode
+          ? "(TESTE) "
+          : ""
         await sendNotificationEmail(
           notificationEmail,
-          `❌ Erro na Reserva ${isTestMode ? "(TESTE) " : ""}- ${
-            reservationHour || "N/A"
-          }:00`,
+          `❌ ${subjectPrefix}Erro na Reserva - ${reservationHour || "N/A"}:00`,
           generateErrorEmailHtml(
             errorMessage,
             currentStep,
@@ -979,6 +1124,7 @@ serve(async (req) => {
               duration,
               scheduleId,
               scheduleName: schedule?.name,
+              isDryRun,
             }
           )
         )
@@ -999,6 +1145,7 @@ serve(async (req) => {
         executionLogId,
         duration,
         isTestMode,
+        isDryRun,
         log: executionLog,
       }),
       {

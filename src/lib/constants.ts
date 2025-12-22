@@ -50,6 +50,7 @@ export type ExecutionStatus =
 
 // Frequency options
 export const FREQUENCY_OPTIONS = [
+  { value: "once", label: "Uma vez" },
   { value: "weekly", label: "Semanal" },
   { value: "biweekly", label: "Quinzenal" },
   { value: "monthly", label: "Mensal" },

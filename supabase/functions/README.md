@@ -2,14 +2,46 @@
 
 Edge Functions serverless em Deno para gerenciar reservas automáticas.
 
+## 🏗️ Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PostgreSQL (pg_cron)                      │
+│  Job: check-and-execute-schedules (roda a cada minuto)      │
+│                           │                                  │
+│                           ▼                                  │
+│  Função SQL: check_and_execute_schedules()                  │
+│  - Verifica se há schedules para executar                   │
+│  - Se SIM → Chama Edge Function via pg_net                  │
+│  - Se NÃO → Retorna sem fazer nada (custo zero)            │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ (Apenas quando necessário)
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Edge Function: execute-reservation              │
+│  - Busca dados do schedule                                  │
+│  - Autentica na API Speed                                   │
+│  - Cria a reserva                                           │
+│  - Registra logs                                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 💰 Otimização de Custos
+
+A função SQL `check_and_execute_schedules()` roda dentro do PostgreSQL:
+
+- **Custo ZERO** para verificação (não conta como invocação de Edge Function)
+- Edge Function só é chamada quando há algo para executar
+- ~4-5 invocações por mês em vez de 43.200!
+
 ## 📁 Estrutura
 
 ```
 supabase/functions/
-├── create-schedule/
-│   └── index.ts          # Cria jobs pg_cron
 ├── execute-reservation/
-│   └── index.ts          # Executa reservas (chamada pelo cron)
+│   └── index.ts          # Executa reservas (chamada pelo pg_cron)
+├── check-scheduled-triggers/
+│   └── index.ts          # [DEPRECATED] Substituída por função SQL
 └── deno.json             # Configuração Deno
 ```
 

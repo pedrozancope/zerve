@@ -1,6 +1,14 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { Plus, Calendar, Clock, Trash2, Edit } from "lucide-react"
+import {
+  Plus,
+  Calendar,
+  Clock,
+  Trash2,
+  Edit,
+  PlayCircle,
+  Loader2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +29,8 @@ import {
   useToggleSchedule,
   useDeleteSchedule,
 } from "@/hooks/useSchedules"
+import { supabase } from "@/services/supabase"
+import { toast } from "sonner"
 
 export default function Schedules() {
   const { data: schedules, isLoading } = useSchedules()
@@ -29,6 +39,9 @@ export default function Schedules() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [scheduleToDelete, setScheduleToDelete] = useState<string | null>(null)
+  const [testingScheduleId, setTestingScheduleId] = useState<string | null>(
+    null
+  )
 
   const getTimeSlotDisplay = (externalId: string) => {
     const slot = TIME_SLOTS.find((s) => s.externalId === externalId)
@@ -50,6 +63,52 @@ export default function Schedules() {
     }
     setDeleteDialogOpen(false)
     setScheduleToDelete(null)
+  }
+
+  const handleDryRunTest = async (scheduleId: string, scheduleName: string) => {
+    setTestingScheduleId(scheduleId)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/execute-reservation`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            scheduleId,
+            dryRun: true,
+          }),
+        }
+      )
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success(`✅ Dry Run concluído para "${scheduleName}"`, {
+          description:
+            "Todos os passos executaram corretamente. A reserva real funcionará!",
+          duration: 5000,
+        })
+      } else {
+        toast.error(`❌ Erro no Dry Run: ${result.error}`, {
+          description: `Etapa com falha: ${result.step}`,
+          duration: 8000,
+        })
+      }
+    } catch (error) {
+      toast.error("Erro ao executar Dry Run", {
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
+      })
+    } finally {
+      setTestingScheduleId(null)
+    }
   }
 
   if (isLoading) {
@@ -164,6 +223,23 @@ export default function Schedules() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          handleDryRunTest(schedule.id, schedule.name)
+                        }
+                        disabled={testingScheduleId === schedule.id}
+                        className="gap-1"
+                        title="Testar agendamento sem fazer reserva real"
+                      >
+                        {testingScheduleId === schedule.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <PlayCircle className="h-4 w-4" />
+                        )}
+                        <span className="hidden sm:inline">Dry Run</span>
+                      </Button>
                       <Switch
                         checked={schedule.isActive}
                         onCheckedChange={() =>

@@ -27,6 +27,8 @@ function mapScheduleFromDB(
     reservationDayOfWeek: row.reservation_day_of_week,
     triggerDayOfWeek: row.trigger_day_of_week,
     triggerTime: row.trigger_time,
+    triggerMode: (row as any).trigger_mode || "reservation_date",
+    triggerDatetime: (row as any).trigger_datetime || undefined,
     cronExpression: row.cron_expression,
     pgCronJobId: row.pg_cron_job_id || undefined,
     frequency: row.frequency,
@@ -126,30 +128,8 @@ export function useCreateSchedule() {
         data as unknown as ScheduleRow & { time_slot: TimeSlotRow }
       )
 
-      // 2. Call Edge Function to create pg_cron job
-      if (newSchedule.isActive) {
-        try {
-          const { data: functionData, error: functionError } =
-            await supabase.functions.invoke("create-schedule", {
-              body: {
-                scheduleId: newSchedule.id,
-                cronExpression: newSchedule.cronExpression,
-                scheduleName: newSchedule.name,
-              },
-            })
-
-          if (functionError) {
-            console.error("Error creating cron job:", functionError)
-            toast.error(
-              "Agendamento criado, mas houve erro ao criar o job automático"
-            )
-          } else {
-            console.log("Cron job created:", functionData)
-          }
-        } catch (err) {
-          console.error("Error invoking create-schedule function:", err)
-        }
-      }
+      // O job pg_cron é criado automaticamente via Database Trigger
+      // (ver migration 006_auto_manage_cron_jobs.sql)
 
       return newSchedule
     },

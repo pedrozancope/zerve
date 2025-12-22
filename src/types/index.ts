@@ -14,9 +14,11 @@ export interface Schedule {
   reservationDayOfWeek: number // 0-6 (dom-sáb)
   triggerDayOfWeek: number // 0-6 (dom-sáb)
   triggerTime: string // '00:01:00'
+  triggerMode: "reservation_date" | "trigger_date" // modo de cálculo do disparo
+  triggerDatetime?: string // data/hora específica quando trigger_mode = 'trigger_date'
   cronExpression: string
   pgCronJobId?: number
-  frequency: "weekly" | "biweekly" | "monthly"
+  frequency: "once" | "weekly" | "biweekly" | "monthly"
   isActive: boolean
   startDate?: string
   endDate?: string
@@ -80,7 +82,7 @@ export interface ScheduleFormData {
   name: string
   timeSlotHour: number
   reservationDayOfWeek: number
-  frequency: "weekly" | "biweekly" | "monthly"
+  frequency: "once" | "weekly" | "biweekly" | "monthly"
   notifyOnSuccess: boolean
   notifyOnFailure: boolean
   startDate?: string
