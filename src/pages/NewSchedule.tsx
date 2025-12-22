@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Calendar, Clock, Bell, Save } from "lucide-react"
+import { useNavigate, useParams, Link } from "react-router-dom"
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Bell,
+  Save,
+  FileText,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -32,10 +42,72 @@ import {
   useSchedule,
   useTimeSlots,
 } from "@/hooks/useSchedules"
+import { useLogs } from "@/hooks/useLogs"
 
 // Horários disponíveis para disparo
 const TRIGGER_HOURS = Array.from({ length: 24 }, (_, i) => i)
 const TRIGGER_MINUTES = [0, 1, 5, 10, 15, 30, 45]
+
+// Componente para mostrar últimos logs do schedule
+function ScheduleLogsSection({ scheduleId }: { scheduleId: string }) {
+  const { data: logs, isLoading } = useLogs({ scheduleId, limit: 5 })
+
+  if (isLoading || !logs || logs.length === 0) {
+    return null
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Últimos Logs
+          </CardTitle>
+          <Link
+            to={`/logs?schedule=${scheduleId}`}
+            className="text-sm text-primary hover:underline flex items-center gap-1"
+          >
+            Ver todos
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {logs.map((log) => (
+            <div
+              key={log.id}
+              className="flex items-center justify-between p-3 rounded-lg border bg-card"
+            >
+              <div className="flex items-center gap-3">
+                {log.status === "success" ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-500" />
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {new Date(log.executedAt).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <Badge
+                variant={log.status === "success" ? "success" : "destructive"}
+              >
+                {log.status === "success" ? "Sucesso" : "Erro"}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function NewSchedule() {
   const navigate = useNavigate()
@@ -675,6 +747,13 @@ export default function NewSchedule() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Logs Section - Only in Edit Mode */}
+        {isEditMode && id && (
+          <div className="mt-6">
+            <ScheduleLogsSection scheduleId={id} />
+          </div>
+        )}
       </form>
     </div>
   )

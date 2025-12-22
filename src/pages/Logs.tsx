@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import {
   CheckCircle2,
   XCircle,
@@ -21,22 +22,39 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useLogs } from "@/hooks/useLogs"
+import { useSchedules } from "@/hooks/useSchedules"
 import type { ExecutionLog } from "@/types"
 
 export default function Logs() {
+  const [searchParams] = useSearchParams()
+  const scheduleIdFromUrl = searchParams.get("schedule")
+
+  const { data: schedules } = useSchedules()
+
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [scheduleFilter, setScheduleFilter] = useState<string>(
+    scheduleIdFromUrl || "all"
+  )
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
+
+  // Atualizar filtro quando mudar URL
+  useEffect(() => {
+    if (scheduleIdFromUrl) {
+      setScheduleFilter(scheduleIdFromUrl)
+    }
+  }, [scheduleIdFromUrl])
 
   const {
     data: logs,
     isLoading,
     refetch,
     isRefetching,
-  } = useLogs(
-    statusFilter === "all"
-      ? {}
-      : { status: statusFilter as ExecutionLog["status"] }
-  )
+  } = useLogs({
+    ...(statusFilter !== "all" && {
+      status: statusFilter as ExecutionLog["status"],
+    }),
+    ...(scheduleFilter !== "all" && { scheduleId: scheduleFilter }),
+  })
 
   const toggleExpanded = (id: string) => {
     setExpandedLogs((prev) => {
@@ -110,10 +128,25 @@ export default function Logs() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">Todos os status</SelectItem>
               <SelectItem value="success">Sucesso</SelectItem>
               <SelectItem value="error">Erro</SelectItem>
               <SelectItem value="pending">Pendente</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
+            <SelectTrigger className="w-[240px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os agendamentos</SelectItem>
+              {schedules?.map((schedule) => (
+                <SelectItem key={schedule.id} value={schedule.id}>
+                  {schedule.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
