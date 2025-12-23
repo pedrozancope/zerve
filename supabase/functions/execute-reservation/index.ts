@@ -1118,13 +1118,13 @@ serve(async (req) => {
             : `[${currentStep}] ${errorMessage}`,
           request_payload: {
             reservationHour,
-            step: currentStep,
             isTestMode,
           },
           response_payload: {
             error: errorMessage,
             details: errorDetails,
             stack: error instanceof Error ? error.stack : undefined,
+            step: currentStep, // IMPORTANTE: step do erro aqui para o frontend usar
           },
           duration_ms: duration,
           is_test: isTestMode,

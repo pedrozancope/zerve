@@ -116,12 +116,18 @@ export default function Logs() {
 
   // Converter ExecutionLog para ExecutionResult para o FlowStepsLog
   const convertToExecutionResult = (log: ExecutionLog): ExecutionResult => {
+    const responsePayload = log.responsePayload as any
+
     return {
       success: log.status === "success",
-      error: log.status === "error" ? log.message : undefined,
+      error:
+        log.status === "error"
+          ? responsePayload?.error || log.message
+          : undefined,
       step: log.errorStep,
       duration: log.durationMs,
       data: log.responsePayload,
+      details: responsePayload?.details,
       log: log.executionLog,
     }
   }

@@ -10,12 +10,24 @@ type ScheduleRow = Database["public"]["Tables"]["schedules"]["Row"]
 function mapExecutionLogFromDB(
   row: ExecutionLogRow & { schedule: ScheduleRow | null }
 ): ExecutionLog {
-  // Tentar extrair log estruturado do response_payload
+  // Tentar extrair log estruturado do flow_steps (prioridade) ou response_payload.log (fallback)
   const responsePayload = row.response_payload as
     | Record<string, unknown>
     | undefined
-  const executionLog = (responsePayload?.log as LogEntry[]) || undefined
-  const errorStep = (responsePayload?.step as string) || undefined
+  const executionLog =
+    (row.flow_steps as LogEntry[]) ||
+    (responsePayload?.log as LogEntry[]) ||
+    undefined
+
+  // Extrair errorStep do response_payload.step ou tentar parsear da mensagem
+  let errorStep = (responsePayload?.step as string) || undefined
+  if (!errorStep && row.status === "error" && row.message) {
+    // Tentar extrair step da mensagem formato: "[TESTE] [step_name] Error..."
+    const stepMatch = row.message.match(/\[([a-z_]+)\]/i)
+    if (stepMatch) {
+      errorStep = stepMatch[1]
+    }
+  }
 
   return {
     id: row.id,
