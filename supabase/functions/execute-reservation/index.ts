@@ -930,6 +930,7 @@ serve(async (req) => {
         duration_ms: duration,
         is_test: isTestMode || isDryRun,
         test_hour: isTestMode || isDryRun ? reservationHour : null,
+        flow_steps: executionLog,
       })
       .select()
       .single()
@@ -1128,6 +1129,7 @@ serve(async (req) => {
           duration_ms: duration,
           is_test: isTestMode,
           test_hour: isTestMode ? reservationHour : null,
+          flow_steps: executionLog,
         })
         .select("id")
         .single()
