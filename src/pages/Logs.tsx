@@ -68,6 +68,15 @@ export default function Logs() {
     ...(scheduleFilter !== "all" && { scheduleId: scheduleFilter }),
   })
 
+  // Auto refresh a cada 5 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch()
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [refetch])
+
   const toggleExpanded = (id: string) => {
     setExpandedLogs((prev) => {
       const newSet = new Set(prev)

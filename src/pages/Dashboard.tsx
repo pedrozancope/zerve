@@ -118,15 +118,18 @@ export default function Dashboard() {
         activeSchedulesWithDates[0].nextTrigger
       )
     : null
-  
+
   // Formatar descrição com nome e data
   const nextReservationDescription = nextSchedule
     ? nextReservationDate
-      ? `${nextSchedule.name} • ${nextReservationDate.toLocaleDateString("pt-BR", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-        })}`
+      ? `${nextSchedule.name} • ${nextReservationDate.toLocaleDateString(
+          "pt-BR",
+          {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+          }
+        )}`
       : nextSchedule.name
     : "Nenhuma"
 
