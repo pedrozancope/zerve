@@ -21,9 +21,114 @@ export default function Dashboard() {
   const totalExecutions = stats?.total_executions || 0
   const successfulExecutions = stats?.successful_executions || 0
 
-  // Próximo agendamento ativo
-  const nextSchedule = schedules.find((s) => s.isActive)
+  // Função para calcular próximo disparo
+  const getNextTriggerDate = (schedule: any) => {
+    if (!schedule.isActive) return null
+
+    const now = new Date()
+
+    // MODO: Data/hora específica (trigger_date)
+    if (schedule.triggerMode === "trigger_date" && schedule.triggerDatetime) {
+      const triggerDate = new Date(schedule.triggerDatetime)
+
+      if (schedule.frequency === "once") {
+        return triggerDate > now ? triggerDate : null
+      }
+
+      if (triggerDate > now) {
+        return triggerDate
+      }
+
+      const dayOfWeek = triggerDate.getDay()
+      const hours = triggerDate.getHours()
+      const minutes = triggerDate.getMinutes()
+
+      let daysUntilTrigger = (dayOfWeek - now.getDay() + 7) % 7
+      if (daysUntilTrigger === 0) {
+        const todayTrigger = new Date(now)
+        todayTrigger.setHours(hours, minutes, 0, 0)
+        if (todayTrigger <= now) {
+          daysUntilTrigger = 7
+        }
+      }
+
+      const nextTrigger = new Date(now)
+      nextTrigger.setDate(now.getDate() + daysUntilTrigger)
+      nextTrigger.setHours(hours, minutes, 0, 0)
+      return nextTrigger
+    }
+
+    // MODO: Baseado na reserva (reservation_date)
+    if (schedule.triggerMode === "reservation_date") {
+      if (schedule.frequency === "once") {
+        return null
+      }
+
+      const triggerDay = schedule.triggerDayOfWeek
+      const [hours, minutes] = schedule.triggerTime.split(":").map(Number)
+
+      let daysUntilTrigger = (triggerDay - now.getDay() + 7) % 7
+      if (daysUntilTrigger === 0) {
+        const todayTrigger = new Date(now)
+        todayTrigger.setHours(hours, minutes, 0, 0)
+        if (todayTrigger <= now) {
+          daysUntilTrigger = 7
+        }
+      }
+
+      const nextTrigger = new Date(now)
+      nextTrigger.setDate(now.getDate() + daysUntilTrigger)
+      nextTrigger.setHours(hours, minutes, 0, 0)
+      return nextTrigger
+    }
+
+    return null
+  }
+
+  // Calcular data da reserva baseado no modo e no próximo disparo
+  const getReservationDate = (schedule: any, nextTrigger: Date | null) => {
+    if (!nextTrigger) return null
+
+    // Modo Data Específica: reserva no mesmo dia do disparo
+    if (schedule.triggerMode === "trigger_date") {
+      return new Date(nextTrigger)
+    }
+
+    // Modo Baseado na Reserva: +10 dias do disparo
+    const reservationDate = new Date(nextTrigger)
+    reservationDate.setDate(reservationDate.getDate() + 10)
+    return reservationDate
+  }
+
+  // Próximo agendamento ativo com data de disparo mais próxima
+  const activeSchedulesWithDates = schedules
+    .filter((s) => s.isActive)
+    .map((s) => {
+      const nextTrigger = getNextTriggerDate(s)
+      return { schedule: s, nextTrigger }
+    })
+    .filter((item) => item.nextTrigger !== null)
+    .sort((a, b) => a.nextTrigger!.getTime() - b.nextTrigger!.getTime())
+
+  const nextSchedule = activeSchedulesWithDates[0]?.schedule
   const nextTime = nextSchedule?.timeSlot?.displayName || "-"
+  const nextReservationDate = activeSchedulesWithDates[0]
+    ? getReservationDate(
+        activeSchedulesWithDates[0].schedule,
+        activeSchedulesWithDates[0].nextTrigger
+      )
+    : null
+  
+  // Formatar descrição com nome e data
+  const nextReservationDescription = nextSchedule
+    ? nextReservationDate
+      ? `${nextSchedule.name} • ${nextReservationDate.toLocaleDateString("pt-BR", {
+          weekday: "short",
+          day: "2-digit",
+          month: "short",
+        })}`
+      : nextSchedule.name
+    : "Nenhuma"
 
   const isLoading = loadingSchedules || loadingStats || loadingToken
 
@@ -73,7 +178,7 @@ export default function Dashboard() {
               title="Próxima Reserva"
               value={nextTime}
               icon={Clock}
-              description={nextSchedule ? nextSchedule.name : "Nenhuma"}
+              description={nextReservationDescription}
               variant="warning"
             />
             <StatCard
@@ -94,17 +199,21 @@ export default function Dashboard() {
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-2 gap-6">
         <UpcomingReservations
-          reservations={schedules
-            .filter((s) => s.isActive)
-            .slice(0, 4)
-            .map((schedule) => ({
-              id: schedule.id,
-              scheduleName: schedule.name,
-              triggerDate: new Date(), // TODO: calcular próxima data
-              reservationDate: new Date(), // TODO: calcular data de reserva
-              time: schedule.timeSlot?.displayName || "",
-              dayOfWeek: schedule.reservationDayOfWeek,
-            }))}
+          reservations={activeSchedulesWithDates.slice(0, 4).map((item) => {
+            const reservationDate = getReservationDate(
+              item.schedule,
+              item.nextTrigger
+            )
+            return {
+              id: item.schedule.id,
+              scheduleName: item.schedule.name,
+              triggerDate: item.nextTrigger!,
+              reservationDate: reservationDate!,
+              time: item.schedule.timeSlot?.displayName || "",
+              dayOfWeek: item.schedule.reservationDayOfWeek,
+              triggerMode: item.schedule.triggerMode,
+            }
+          })}
           isLoading={loadingSchedules}
         />
         <RecentActivity logs={recentLogs} isLoading={loadingLogs} />

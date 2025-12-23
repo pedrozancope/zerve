@@ -11,6 +11,7 @@ interface UpcomingReservation {
   reservationDate: Date
   time: string
   dayOfWeek: number
+  triggerMode: string
 }
 
 interface UpcomingReservationsProps {
@@ -23,13 +24,19 @@ export function UpcomingReservations({
   isLoading,
 }: UpcomingReservationsProps) {
   const getDaysUntil = (date: Date) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const now = new Date()
     const target = new Date(date)
-    target.setHours(0, 0, 0, 0)
-    const diffTime = target.getTime() - today.getTime()
+    const diffTime = target.getTime() - now.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays
+  }
+
+  const getHoursUntil = (date: Date) => {
+    const now = new Date()
+    const target = new Date(date)
+    const diffTime = target.getTime() - now.getTime()
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+    return diffHours
   }
 
   if (isLoading) {
@@ -83,10 +90,57 @@ export function UpcomingReservations({
       <CardContent>
         <div className="space-y-3">
           {reservations.map((reservation) => {
-            const daysUntilTrigger = getDaysUntil(reservation.triggerDate)
             const daysUntilReservation = getDaysUntil(
               reservation.reservationDate
             )
+            const hoursUntilTrigger = getHoursUntil(reservation.triggerDate)
+            const daysUntilTrigger = Math.floor(hoursUntilTrigger / 24)
+
+            // Determinar label do badge baseado no tempo até o disparo
+            let badgeLabel = ""
+            let badgeVariant: "warning" | "outline" | "default" = "outline"
+
+            if (hoursUntilTrigger < 0) {
+              badgeLabel = "Passou"
+              badgeVariant = "default"
+            } else if (hoursUntilTrigger < 1) {
+              const minutesUntil = Math.floor((hoursUntilTrigger * 60) % 60)
+              badgeLabel = `${minutesUntil}min`
+              badgeVariant = "warning"
+            } else if (hoursUntilTrigger < 24) {
+              badgeLabel = `${Math.floor(hoursUntilTrigger)}h`
+              badgeVariant = "warning"
+            } else if (daysUntilTrigger === 1) {
+              badgeLabel = "Amanhã"
+              badgeVariant = "warning"
+            } else {
+              badgeLabel = `${daysUntilTrigger} dias`
+              badgeVariant = "outline"
+            }
+
+            // Label da reserva baseado no modo
+            let reservationLabel = ""
+            if (reservation.triggerMode === "trigger_date") {
+              // Modo Data Específica: reserva no mesmo dia do disparo
+              if (daysUntilReservation === 0 && hoursUntilTrigger >= 0) {
+                reservationLabel = "Reserva hoje"
+              } else if (daysUntilReservation === 1) {
+                reservationLabel = "Reserva amanhã"
+              } else if (daysUntilReservation > 1) {
+                reservationLabel = `Reserva em ${daysUntilReservation} dias`
+              } else {
+                reservationLabel = "Reserva passou"
+              }
+            } else {
+              // Modo Baseado na Reserva: +10 dias
+              if (daysUntilReservation === 0) {
+                reservationLabel = "Reserva hoje"
+              } else if (daysUntilReservation === 1) {
+                reservationLabel = "Reserva amanhã"
+              } else {
+                reservationLabel = `Reserva em ${daysUntilReservation} dias`
+              }
+            }
 
             return (
               <div
@@ -111,17 +165,9 @@ export function UpcomingReservations({
                   </div>
                 </div>
                 <div className="text-right">
-                  <Badge
-                    variant={daysUntilTrigger <= 1 ? "warning" : "outline"}
-                  >
-                    {daysUntilTrigger === 0
-                      ? "Hoje!"
-                      : daysUntilTrigger === 1
-                      ? "Amanhã"
-                      : `${daysUntilTrigger} dias`}
-                  </Badge>
+                  <Badge variant={badgeVariant}>{badgeLabel}</Badge>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Reserva em {daysUntilReservation} dias
+                    {reservationLabel}
                   </p>
                 </div>
               </div>
