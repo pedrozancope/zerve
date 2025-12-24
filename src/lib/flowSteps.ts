@@ -14,137 +14,182 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+// Tipos de execução suportados
+export type ExecutionType = "reservation" | "preflight" | "test"
+
 // Definição das etapas do fluxo de execução
 export interface FlowStep {
   id: string
   name: string
   icon: LucideIcon
   description: string
+  /** Descrição alternativa para diferentes tipos de execução */
+  descriptionByType?: Partial<Record<ExecutionType, string>>
+  /** Tipos de execução onde este step se aplica (se não definido, aplica a todos) */
+  appliesTo?: ExecutionType[]
 }
 
-// Steps completos do fluxo de reserva
-export const RESERVATION_FLOW_STEPS: FlowStep[] = [
+// =============================================================================
+// DEFINIÇÃO UNIFICADA DE STEPS
+// =============================================================================
+// Todos os steps possíveis, com indicação de onde se aplicam
+export const ALL_FLOW_STEPS: FlowStep[] = [
+  // Step inicial para preflight
+  {
+    id: "initialization",
+    name: "Iniciar Pre-flight",
+    icon: Plane,
+    description: "Iniciando Pre-flight",
+    appliesTo: ["preflight"],
+  },
+  // Step inicial para reservation/test
   {
     id: "parsing_payload",
     name: "Receber Payload",
     icon: FileCheck,
-    description: "Processar dados recebidos",
+    description: "Payload recebido",
+    appliesTo: ["reservation", "test"],
   },
+  // Step de modo de teste
   {
     id: "test_mode",
     name: "Modo de Teste",
     icon: PlayCircle,
     description: "Ativar modo de teste E2E",
+    appliesTo: ["test"],
   },
+  // Busca de agendamento (apenas reservation)
   {
     id: "getting_schedule",
     name: "Buscar Agendamento",
     icon: Search,
-    description: "Obter detalhes do agendamento",
+    description: "Buscando detalhes do agendamento...",
+    appliesTo: ["reservation"],
   },
+  // Steps comuns a todos os tipos
   {
     id: "getting_refresh_token",
     name: "Buscar Token",
     icon: Key,
-    description: "Obter refresh token do banco",
+    description: "Obtendo refresh token do Supabase...",
   },
   {
     id: "authenticating_superlogica",
     name: "Autenticar",
     icon: Shield,
-    description: "Autenticar na API SuperLogica",
+    description: "Autenticando com a API da SuperLogica...",
   },
   {
     id: "updating_refresh_token",
     name: "Atualizar Token",
     icon: RefreshCw,
-    description: "Salvar novo refresh token",
+    description: "Atualizando refresh token no Supabase...",
   },
+  // Steps específicos de reservation/test
   {
     id: "making_reservation",
     name: "Fazer Reserva",
     icon: Calendar,
-    description: "Chamar API do Speed",
+    description: "Iniciando reserva na API do Speed...",
+    descriptionByType: {
+      test: "🔍 [DRY RUN] Simulando reserva...",
+    },
+    appliesTo: ["reservation", "test"],
   },
   {
     id: "processing_response",
     name: "Processar Resposta",
     icon: Database,
-    description: "Validar resposta da API",
+    description: "Resposta da reserva recebida",
+    appliesTo: ["reservation", "test"],
   },
+  // Salvar logs (apenas reservation real)
   {
     id: "saving_execution_log",
     name: "Salvar Log",
     icon: Save,
     description: "Registrar execução no banco",
+    appliesTo: ["reservation"],
   },
   {
     id: "saving_reservation",
     name: "Salvar Reserva",
     icon: Save,
     description: "Registrar reserva no banco",
+    appliesTo: ["reservation"],
   },
+  // Notificação - comum a todos
   {
     id: "sending_notification",
     name: "Notificação",
     icon: Bell,
     description: "Enviar e-mail de notificação",
   },
+  // Sucesso - comum a todos
   {
     id: "success",
     name: "Sucesso",
     icon: CheckCircle2,
-    description: "Reserva concluída!",
+    description: "Concluído com sucesso!",
+    descriptionByType: {
+      preflight: "Pre-flight concluído com sucesso! ✈️",
+      reservation: "Reserva concluída!",
+      test: "🔍 [DRY RUN] Simulação concluída com sucesso",
+    },
   },
 ]
 
-// Steps simplificados para modo de teste E2E (não inclui getting_schedule)
-export const TEST_FLOW_STEPS: FlowStep[] = RESERVATION_FLOW_STEPS.filter(
-  (step) =>
-    step.id !== "getting_schedule" &&
-    step.id !== "saving_execution_log" &&
-    step.id !== "saving_reservation"
-)
+// =============================================================================
+// FUNÇÕES AUXILIARES
+// =============================================================================
+
+/**
+ * Obtém os steps aplicáveis para um tipo de execução
+ */
+export function getStepsForType(executionType: ExecutionType): FlowStep[] {
+  return ALL_FLOW_STEPS.filter((step) => {
+    // Se não tem restrição, aplica a todos
+    if (!step.appliesTo || step.appliesTo.length === 0) return true
+    // Verifica se aplica ao tipo especificado
+    return step.appliesTo.includes(executionType)
+  })
+}
+
+/**
+ * Obtém a descrição apropriada para um step baseado no tipo de execução
+ */
+export function getStepDescription(
+  step: FlowStep,
+  executionType: ExecutionType
+): string {
+  return step.descriptionByType?.[executionType] || step.description
+}
+
+/**
+ * Verifica se um step se aplica a um tipo de execução
+ */
+export function stepAppliesTo(
+  stepId: string,
+  executionType: ExecutionType
+): boolean {
+  const step = ALL_FLOW_STEPS.find((s) => s.id === stepId)
+  if (!step) return false
+  if (!step.appliesTo || step.appliesTo.length === 0) return true
+  return step.appliesTo.includes(executionType)
+}
+
+// =============================================================================
+// EXPORTS LEGADOS (para compatibilidade)
+// =============================================================================
+
+// Steps completos do fluxo de reserva
+export const RESERVATION_FLOW_STEPS: FlowStep[] = getStepsForType("reservation")
+
+// Steps simplificados para modo de teste E2E
+export const TEST_FLOW_STEPS: FlowStep[] = getStepsForType("test")
 
 // Steps para Pre-flight (validação de token)
-export const PREFLIGHT_FLOW_STEPS: FlowStep[] = [
-  {
-    id: "initialization",
-    name: "Iniciar Pre-flight",
-    icon: Plane,
-    description: "Inicializar verificação",
-  },
-  {
-    id: "getting_refresh_token",
-    name: "Buscar Token",
-    icon: Key,
-    description: "Obter refresh token do banco",
-  },
-  {
-    id: "authenticating_superlogica",
-    name: "Autenticar",
-    icon: Shield,
-    description: "Autenticar na API SuperLogica",
-  },
-  {
-    id: "updating_refresh_token",
-    name: "Atualizar Token",
-    icon: RefreshCw,
-    description: "Salvar novo refresh token",
-  },
-  {
-    id: "sending_notification",
-    name: "Notificação",
-    icon: Bell,
-    description: "Enviar e-mail de notificação",
-  },
-  {
-    id: "success",
-    name: "Sucesso",
-    icon: CheckCircle2,
-    description: "Token validado com sucesso!",
-  },
-]
+export const PREFLIGHT_FLOW_STEPS: FlowStep[] = getStepsForType("preflight")
 
 // Mapeia IDs de step para nomes legíveis
 export const STEP_NAMES: Record<string, string> = {
@@ -170,42 +215,13 @@ export const STEP_NAMES: Record<string, string> = {
 export function getRelevantSteps(
   isTest: boolean,
   logEntries?: LogEntry[],
-  executionType?: "reservation" | "preflight" | "test"
+  executionType?: ExecutionType
 ): FlowStep[] {
-  // Se for preflight, usa steps de preflight
-  if (executionType === "preflight") {
-    return PREFLIGHT_FLOW_STEPS
-  }
+  // Determina o tipo de execução
+  const type: ExecutionType = executionType || (isTest ? "test" : "reservation")
 
-  // Se for teste, usa steps simplificados
-  if (isTest || executionType === "test") {
-    return TEST_FLOW_STEPS
-  }
-
-  // Para execução normal, retorna todos os steps que aparecem nos logs
-  // ou todos se não houver logs
-  if (!logEntries || logEntries.length === 0) {
-    return RESERVATION_FLOW_STEPS
-  }
-
-  // Filtra apenas os steps que aparecem nos logs
-  const logStepIds = new Set(logEntries.map((l) => l.step))
-
-  // Sempre inclui os steps básicos
-  const basicSteps = [
-    "parsing_payload",
-    "getting_schedule",
-    "getting_refresh_token",
-    "authenticating_superlogica",
-    "updating_refresh_token",
-    "making_reservation",
-    "processing_response",
-    "success",
-  ]
-
-  return RESERVATION_FLOW_STEPS.filter(
-    (step) => logStepIds.has(step.id) || basicSteps.includes(step.id)
-  )
+  // Retorna os steps para o tipo
+  return getStepsForType(type)
 }
 
 // Interface para entrada de log

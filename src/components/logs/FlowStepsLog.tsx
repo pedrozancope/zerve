@@ -10,9 +10,9 @@ import {
 import {
   type FlowStep,
   type ExecutionResult,
-  RESERVATION_FLOW_STEPS,
-  TEST_FLOW_STEPS,
-  PREFLIGHT_FLOW_STEPS,
+  type ExecutionType,
+  getStepsForType,
+  getStepDescription,
   STEP_NAMES,
 } from "@/lib/flowSteps"
 
@@ -23,7 +23,17 @@ interface FlowStepsLogProps {
   title?: string
   subtitle?: string
   compact?: boolean
-  executionType?: "reservation" | "preflight" | "test"
+  executionType?: ExecutionType
+}
+
+// Interface para detalhes da notificação
+interface NotificationDetails {
+  sent?: boolean
+  email?: string
+  type?: string
+  configured?: boolean
+  enabled?: boolean
+  isDryRun?: boolean
 }
 
 export function FlowStepsLog({
@@ -35,13 +45,11 @@ export function FlowStepsLog({
   compact = false,
   executionType = "reservation",
 }: FlowStepsLogProps) {
-  // Seleciona os steps apropriados baseado no modo
-  const flowSteps =
-    executionType === "preflight"
-      ? PREFLIGHT_FLOW_STEPS
-      : isTest || executionType === "test"
-      ? TEST_FLOW_STEPS
-      : getVisibleSteps(result)
+  // Determina o tipo de execução efetivo
+  const effectiveType: ExecutionType = executionType || (isTest ? "test" : "reservation")
+  
+  // Obtém os steps para o tipo de execução
+  const flowSteps = getStepsForType(effectiveType)
 
   // Determina o status de cada etapa baseado no log
   const getStepStatus = (
@@ -67,18 +75,20 @@ export function FlowStepsLog({
     if (stepId === "error") return "error"
 
     if (logEntry) {
-      // Para o step de notificação, verificar se o email foi realmente enviado
+      // Para o step de notificação, verificar os detalhes
       if (stepId === "sending_notification") {
+        const details = logEntry.details as NotificationDetails | undefined
+        
         // Se tem details.sent = true, foi enviado com sucesso
-        if (logEntry.details?.sent === true) {
+        if (details?.sent === true) {
           return "success"
         }
-        // Se tem details.sent = false ou não foi enviado
-        if (logEntry.details?.sent === false) {
+        // Se tem details.sent = false, falhou
+        if (details?.sent === false) {
           return "error"
         }
         // Se não tem configuração de email ou está desabilitado, mostrar como "skipped"
-        if (!logEntry.details?.configured || !logEntry.details?.enabled) {
+        if (details?.configured === false || details?.enabled === false) {
           return "skipped"
         }
         // Por padrão, se tem log entry, considera sucesso
@@ -138,40 +148,112 @@ export function FlowStepsLog({
     return result?.log?.find((l) => l.step === stepId)
   }
 
-  const getStepMessage = (
-    stepId: string,
-    logEntry: any,
-    executionResult: ExecutionResult | null
-  ) => {
-    // Para o step de notificação, customizar a mensagem baseado no status da execução
-    if (stepId === "sending_notification") {
-      if (logEntry?.message) {
-        // Adicionar contexto se foi email de sucesso ou erro
-        const isSuccess = executionResult?.success ?? true
-        const prefix = isSuccess ? "✅" : "❌"
-        const type = isSuccess ? "sucesso" : "erro"
+  const getStepMessage = (step: FlowStep, logEntry: any) => {
+    // Se tem mensagem no log, usa ela
+    if (logEntry?.message) {
+      return logEntry.message
+    }
+    // Usa a descrição específica para o tipo de execução
+    return getStepDescription(step, effectiveType)
+  }
 
-        // Se a mensagem já menciona sucesso/erro, retornar ela diretamente
-        if (
-          logEntry.message.toLowerCase().includes("sucesso") ||
-          logEntry.message.toLowerCase().includes("erro")
-        ) {
-          return logEntry.message
-        }
+  // Função para renderizar o card de detalhes da notificação
+  const renderNotificationDetails = (logEntry: any) => {
+    if (!logEntry) return null
 
-        // Caso contrário, adicionar contexto
-        return `${prefix} ${logEntry.message} (${type})`
+    const details = logEntry.details as NotificationDetails | undefined
+
+    // Determinar o tipo de notificação baseado no contexto
+    const getNotificationType = () => {
+      const type = details?.type || ""
+      if (type.includes("error") || type.includes("erro")) {
+        return { label: "Notificação de Erro", color: "text-red-600 dark:text-red-400", icon: "❌" }
       }
-      // Mensagem padrão se não houver log
-      const isSuccess = executionResult?.success ?? true
-      return isSuccess
-        ? "Enviar e-mail de confirmação de sucesso"
-        : "Enviar e-mail de notificação de erro"
+      if (type.includes("preflight")) {
+        return { label: "Notificação de Pre-flight", color: "text-sky-600 dark:text-sky-400", icon: "✈️" }
+      }
+      return { label: "Notificação de Sucesso", color: "text-green-600 dark:text-green-400", icon: "✅" }
     }
 
-    // Para outros steps, retornar a mensagem do log ou a descrição padrão
-    const currentStep = flowSteps.find((s) => s.id === stepId)
-    return logEntry?.message || currentStep?.description || ""
+    const notificationType = getNotificationType()
+
+    return (
+      <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700">
+        <Bell
+          className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+            details?.sent
+              ? "text-green-600 dark:text-green-400"
+              : details?.configured === false || details?.enabled === false
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-red-600 dark:text-red-400"
+          }`}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Notificação por E-mail
+              </span>
+              {details?.sent === true && (
+                <Badge variant="success" className="text-[10px] h-4 px-1.5">
+                  ✓ ENVIADO
+                </Badge>
+              )}
+              {details?.sent === false && (
+                <Badge variant="destructive" className="text-[10px] h-4 px-1.5">
+                  ✗ FALHOU
+                </Badge>
+              )}
+              {(details?.configured === false || details?.enabled === false) && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] h-4 px-1.5 text-amber-600 border-amber-300"
+                >
+                  {details?.configured === false ? "⊘ NÃO CONFIG." : "⊘ DESABILITADO"}
+                </Badge>
+              )}
+            </div>
+            {logEntry.timestamp && (
+              <span className="text-[10px] text-slate-500 dark:text-slate-500 font-mono whitespace-nowrap">
+                {new Date(logEntry.timestamp).toLocaleTimeString("pt-BR")}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1.5">
+            {logEntry.message}
+          </p>
+          <div className="space-y-0.5">
+            {details?.email && (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500">
+                <span className="font-medium">Destinatário:</span>
+                <span className="font-mono">{String(details.email)}</span>
+              </div>
+            )}
+            {details?.type && (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500">
+                <span className="font-medium">Tipo:</span>
+                <span className={notificationType.color + " font-medium"}>
+                  {notificationType.icon} {notificationType.label}
+                </span>
+              </div>
+            )}
+            {details?.isDryRun && (
+              <div className="flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+                <span className="font-medium">🔍 Modo:</span>
+                <span>Dry Run (Simulação)</span>
+              </div>
+            )}
+            {!details?.sent && details?.configured === false && (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500 mt-1">
+                <span>
+                  💡 Configure o e-mail nas Configurações para receber notificações
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const defaultSubtitle = result
@@ -196,6 +278,8 @@ export function FlowStepsLog({
                     ? "bg-red-100"
                     : status === "running"
                     ? "bg-blue-100"
+                    : status === "skipped"
+                    ? "bg-amber-100"
                     : "bg-muted"
                 }`}
               >
@@ -218,12 +302,20 @@ export function FlowStepsLog({
                   ERRO
                 </Badge>
               )}
+              {status === "skipped" && (
+                <Badge variant="outline" className="text-xs h-5 text-amber-600 border-amber-300">
+                  PULADO
+                </Badge>
+              )}
             </div>
           )
         })}
       </div>
     )
   }
+
+  // Filtrar steps para exibição - remover sending_notification pois será mostrado dentro do step final
+  const visibleSteps = flowSteps.filter((step) => step.id !== "sending_notification")
 
   return (
     <Card>
@@ -244,317 +336,131 @@ export function FlowStepsLog({
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {flowSteps
-            .filter((step) => {
-              // Filtrar o step de notificação - ele será renderizado como parte do step de erro ou sucesso
-              if (step.id === "sending_notification") {
-                return false
-              }
-              return true
-            })
-            .map((step, index) => {
-              const status = getStepStatus(step.id)
-              const logEntry = getLogEntryForStep(step.id)
-              const isErrorStep = result?.step === step.id && !result?.success
-              const isSuccessStep = step.id === "success" && result?.success
+          {visibleSteps.map((step, index) => {
+            const status = getStepStatus(step.id)
+            const logEntry = getLogEntryForStep(step.id)
+            const isErrorStep = result?.step === step.id && !result?.success
+            const isSuccessStep = step.id === "success" && result?.success
+            const isFinalStep = isErrorStep || isSuccessStep
 
-              // Debug simples
-              if (step.id === "success" && result?.log) {
-                console.log("=== TODOS OS STEPS ===")
-                result.log.forEach((l, i) => {
-                  console.log(`${i}: ${l.step}`)
-                })
-              }
+            // Buscar log de notificação para mostrar no step final
+            const notificationLog = getLogEntryForStep("sending_notification")
 
-              // Buscar log de notificação se este é o step de erro ou sucesso
-              const notificationLog =
-                result?.log?.find((l) => l.step === "sending_notification") ||
-                null
-
-              // Mostrar card de notificação apenas nos steps finais (erro ou sucesso)
-              const showNotificationCard =
-                (isErrorStep || isSuccessStep) && notificationLog
-
-              // Type assertion para os details da notificação
-              const notificationDetails = notificationLog?.details as
-                | {
-                    sent?: boolean
-                    email?: string
-                    type?: string
-                    configured?: boolean
-                    enabled?: boolean
-                    isDryRun?: boolean
-                  }
-                | undefined
-
-              return (
-                <div key={step.id}>
-                  <div
-                    className={`p-3 rounded-lg border transition-all ${getStatusColor(
-                      status
-                    )} ${isErrorStep ? "ring-2 ring-red-500" : ""}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`p-2 rounded-full ${
-                          status === "success"
-                            ? "bg-green-100 dark:bg-green-900/50"
-                            : status === "error"
-                            ? "bg-red-100 dark:bg-red-900/50"
-                            : status === "running"
-                            ? "bg-blue-100 dark:bg-blue-900/50"
-                            : status === "skipped"
-                            ? "bg-amber-100 dark:bg-amber-900/50"
-                            : "bg-muted"
-                        }`}
-                      >
-                        {getStatusIcon(status, step.icon)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{step.name}</span>
-                          {status === "success" && (
-                            <Badge variant="success" className="text-xs">
-                              OK
-                            </Badge>
-                          )}
-                          {status === "error" && (
-                            <Badge variant="destructive" className="text-xs">
-                              ERRO
-                            </Badge>
-                          )}
-                          {status === "running" && (
-                            <Badge variant="secondary" className="text-xs">
-                              EXECUTANDO
-                            </Badge>
-                          )}
-                          {status === "skipped" && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs text-amber-600 border-amber-300"
-                            >
-                              PULADO
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {getStepMessage(step.id, logEntry, result)}
-                        </p>
-                      </div>
-                      {logEntry?.timestamp && (
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(logEntry.timestamp).toLocaleTimeString(
-                            "pt-BR"
-                          )}
-                        </span>
-                      )}
+            return (
+              <div key={step.id}>
+                <div
+                  className={`p-3 rounded-lg border transition-all ${getStatusColor(
+                    status
+                  )} ${isErrorStep ? "ring-2 ring-red-500" : ""}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-full ${
+                        status === "success"
+                          ? "bg-green-100 dark:bg-green-900/50"
+                          : status === "error"
+                          ? "bg-red-100 dark:bg-red-900/50"
+                          : status === "running"
+                          ? "bg-blue-100 dark:bg-blue-900/50"
+                          : status === "skipped"
+                          ? "bg-amber-100 dark:bg-amber-900/50"
+                          : "bg-muted"
+                      }`}
+                    >
+                      {getStatusIcon(status, step.icon)}
                     </div>
-
-                    {/* Indicador de notificação no step de erro ou sucesso */}
-                    {showNotificationCard && (
-                      <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700">
-                        <Bell
-                          className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-                            notificationDetails?.sent
-                              ? "text-green-600 dark:text-green-400"
-                              : notificationDetails?.configured === false
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-red-600 dark:text-red-400"
-                          }`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                Notificação por E-mail
-                              </span>
-                              {notificationDetails?.sent && (
-                                <Badge
-                                  variant="success"
-                                  className="text-[10px] h-4 px-1.5"
-                                >
-                                  {"✓ ENVIADO"}
-                                </Badge>
-                              )}
-                              {notificationDetails?.sent === false && (
-                                <Badge
-                                  variant="destructive"
-                                  className="text-[10px] h-4 px-1.5"
-                                >
-                                  {"✗ FALHOU"}
-                                </Badge>
-                              )}
-                              {notificationDetails?.configured === false && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] h-4 px-1.5 text-amber-600 border-amber-300"
-                                >
-                                  {"⊘ NÃO CONFIG."}
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-500 font-mono whitespace-nowrap">
-                              {notificationLog.timestamp
-                                ? new Date(
-                                    notificationLog.timestamp
-                                  ).toLocaleTimeString("pt-BR")
-                                : "—"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1.5">
-                            {notificationLog.message}
-                          </p>
-                          <div className="space-y-0.5">
-                            {notificationDetails?.email && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500">
-                                <span className="font-medium">
-                                  Destinatário:
-                                </span>
-                                <span className="font-mono">
-                                  {String(notificationDetails.email)}
-                                </span>
-                              </div>
-                            )}
-                            {notificationDetails?.type && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500">
-                                <span className="font-medium">Tipo:</span>
-                                <span
-                                  className={
-                                    notificationDetails.type === "error"
-                                      ? "text-red-600 dark:text-red-400 font-medium"
-                                      : "text-green-600 dark:text-green-400 font-medium"
-                                  }
-                                >
-                                  {notificationDetails.type === "error"
-                                    ? "❌ Notificação de Erro"
-                                    : "✅ Notificação de Sucesso"}
-                                </span>
-                              </div>
-                            )}
-                            {notificationDetails?.isDryRun && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
-                                <span className="font-medium">🔍 Modo:</span>
-                                <span>{"Dry Run (Simulação)"}</span>
-                              </div>
-                            )}
-                            {!notificationDetails?.sent &&
-                              !notificationDetails?.configured && (
-                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500 mt-1">
-                                  <span>
-                                    💡 Configure o e-mail nas Configurações para
-                                    receber notificações
-                                  </span>
-                                </div>
-                              )}
-                          </div>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{step.name}</span>
+                        {status === "success" && (
+                          <Badge variant="success" className="text-xs">
+                            OK
+                          </Badge>
+                        )}
+                        {status === "error" && (
+                          <Badge variant="destructive" className="text-xs">
+                            ERRO
+                          </Badge>
+                        )}
+                        {status === "running" && (
+                          <Badge variant="secondary" className="text-xs">
+                            EXECUTANDO
+                          </Badge>
+                        )}
+                        {status === "skipped" && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs text-amber-600 border-amber-300"
+                          >
+                            PULADO
+                          </Badge>
+                        )}
                       </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {getStepMessage(step, logEntry)}
+                      </p>
+                    </div>
+                    {logEntry?.timestamp && (
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(logEntry.timestamp).toLocaleTimeString("pt-BR")}
+                      </span>
                     )}
-
-                    {/* Detalhes do erro */}
-                    {isErrorStep && result?.error && (
-                      <div className="mt-3 p-2 rounded bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                        <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                          {result.error}
-                        </p>
-                        {result.details &&
-                          Object.keys(result.details).length > 0 && (
-                            <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">
-                              {JSON.stringify(result.details, null, 2)}
-                            </pre>
-                          )}
-                      </div>
-                    )}
-
-                    {/* Detalhes do log */}
-                    {logEntry?.details &&
-                      !isErrorStep &&
-                      Object.keys(logEntry.details).length > 0 && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                            Ver detalhes
-                          </summary>
-                          <pre className="mt-1 p-2 rounded bg-background/50 text-xs overflow-x-auto max-h-32">
-                            {JSON.stringify(logEntry.details, null, 2)}
-                          </pre>
-                        </details>
-                      )}
                   </div>
 
-                  {/* Linha conectora */}
-                  {index < flowSteps.length - 1 && (
-                    <div className="flex justify-center py-1">
-                      <div
-                        className={`w-0.5 h-3 ${
-                          status === "success"
-                            ? "bg-green-300 dark:bg-green-700"
-                            : status === "error"
-                            ? "bg-red-300 dark:bg-red-700"
-                            : "bg-muted"
-                        }`}
-                      />
+                  {/* Mostrar card de notificação no step final (erro ou sucesso) */}
+                  {isFinalStep && notificationLog && renderNotificationDetails(notificationLog)}
+
+                  {/* Detalhes do erro */}
+                  {isErrorStep && result?.error && (
+                    <div className="mt-3 p-2 rounded bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                      <p className="text-sm text-red-800 dark:text-red-200 font-medium">
+                        Erro ao reservar quadra
+                      </p>
+                      {result.details && Object.keys(result.details).length > 0 && (
+                        <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">
+                          {JSON.stringify(result.details, null, 2)}
+                        </pre>
+                      )}
                     </div>
                   )}
+
+                  {/* Detalhes do log (exceto para step de erro que já mostra os detalhes) */}
+                  {logEntry?.details &&
+                    !isErrorStep &&
+                    !isFinalStep &&
+                    Object.keys(logEntry.details).length > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                          Ver detalhes
+                        </summary>
+                        <pre className="mt-1 p-2 rounded bg-background/50 text-xs overflow-x-auto max-h-32">
+                          {JSON.stringify(logEntry.details, null, 2)}
+                        </pre>
+                      </details>
+                    )}
                 </div>
-              )
-            })}
+
+                {/* Linha conectora */}
+                {index < visibleSteps.length - 1 && (
+                  <div className="flex justify-center py-1">
+                    <div
+                      className={`w-0.5 h-3 ${
+                        status === "success"
+                          ? "bg-green-300 dark:bg-green-700"
+                          : status === "error"
+                          ? "bg-red-300 dark:bg-red-700"
+                          : "bg-muted"
+                      }`}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </CardContent>
     </Card>
   )
-}
-
-// Função auxiliar para determinar quais steps são visíveis baseado no resultado
-function getVisibleSteps(result: ExecutionResult | null): FlowStep[] {
-  if (!result?.log || result.log.length === 0) {
-    // Retorna steps básicos quando não há log
-    return RESERVATION_FLOW_STEPS.filter((step) =>
-      [
-        "parsing_payload",
-        "getting_schedule",
-        "getting_refresh_token",
-        "authenticating_superlogica",
-        "updating_refresh_token",
-        "making_reservation",
-        "processing_response",
-        "success",
-      ].includes(step.id)
-    )
-  }
-
-  // Identifica quais steps aparecem nos logs
-  const logStepIds = new Set(result.log.map((l) => l.step))
-
-  // Adiciona step de teste se test_mode está nos logs
-  const hasTestMode = logStepIds.has("test_mode")
-
-  // Filtra steps relevantes
-  return RESERVATION_FLOW_STEPS.filter((step) => {
-    // Sempre exclui getting_schedule se for modo de teste
-    if (hasTestMode && step.id === "getting_schedule") return false
-
-    // Inclui steps que aparecem nos logs ou são esperados
-    if (logStepIds.has(step.id)) return true
-
-    // Inclui steps básicos do fluxo
-    const basicSteps = [
-      "parsing_payload",
-      "getting_refresh_token",
-      "authenticating_superlogica",
-      "updating_refresh_token",
-      "making_reservation",
-      "processing_response",
-      "success",
-    ]
-
-    if (!hasTestMode) {
-      basicSteps.push("getting_schedule")
-    } else {
-      basicSteps.push("test_mode")
-    }
-
-    return basicSteps.includes(step.id)
-  })
 }
 
 export default FlowStepsLog

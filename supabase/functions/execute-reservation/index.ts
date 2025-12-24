@@ -443,8 +443,8 @@ function generateErrorEmailHtml(
 ): string {
   const isDryRun = details?.isDryRun || false
   // Formatar data da reserva para exibição no email (DD/MM/YYYY)
-  const displayReservationDate = details?.reservationDate 
-    ? formatDateForDisplay(details.reservationDate) 
+  const displayReservationDate = details?.reservationDate
+    ? formatDateForDisplay(details.reservationDate)
     : undefined
   const stepNames: Record<string, string> = {
     initialization: "Inicialização",

@@ -381,6 +381,58 @@ async function executePreflightForSchedule(
     addLog(currentStep, "Refresh token atualizado com sucesso!")
 
     // ==========================================================================
+    // ENVIAR E-MAIL DE SUCESSO (se configurado)
+    // ==========================================================================
+    currentStep = "sending_notification"
+
+    // Buscar configurações de notificação
+    const { data: notifyConfigs } = await supabaseClient
+      .from("app_config")
+      .select("value")
+      .eq("key", "notification_email")
+      .single()
+
+    const notificationEmail = notifyConfigs?.value
+    const notifyEnabled = schedule.preflight_notify_on_success
+
+    if (notificationEmail && notifyEnabled) {
+      const emailSent = await sendNotificationEmail(
+        notificationEmail,
+        `✈️ Pre-flight OK - ${schedule.name}`,
+        generatePreflightSuccessEmailHtml(
+          schedule.name,
+          schedule.preflight_hours_before,
+          schedule.trigger_datetime
+        )
+      )
+      addLog(
+        "sending_notification",
+        emailSent
+          ? "E-mail de sucesso enviado"
+          : "E-mail não enviado (falha no envio)",
+        {
+          email: notificationEmail,
+          sent: emailSent,
+          configured: true,
+          enabled: true,
+          type: "preflight_success",
+        }
+      )
+    } else {
+      addLog(
+        "sending_notification",
+        !notificationEmail
+          ? "E-mail não configurado - notificação pulada"
+          : "Notificações de sucesso desabilitadas",
+        {
+          configured: !!notificationEmail,
+          enabled: notifyEnabled,
+          type: "preflight_success",
+        }
+      )
+    }
+
+    // ==========================================================================
     // SUCCESS
     // ==========================================================================
     const duration = Date.now() - startTime
@@ -411,27 +463,6 @@ async function executePreflightForSchedule(
       duration_ms: duration,
     })
 
-    // Enviar e-mail de sucesso (se configurado)
-    if (schedule.preflight_notify_on_success) {
-      const { data: notifyConfigs } = await supabaseClient
-        .from("app_config")
-        .select("value")
-        .eq("key", "notification_email")
-        .single()
-
-      if (notifyConfigs?.value) {
-        await sendNotificationEmail(
-          notifyConfigs.value,
-          `✈️ Pre-flight OK - ${schedule.name}`,
-          generatePreflightSuccessEmailHtml(
-            schedule.name,
-            schedule.preflight_hours_before,
-            schedule.trigger_datetime
-          )
-        )
-      }
-    }
-
     return {
       scheduleId: schedule.id,
       scheduleName: schedule.name,
@@ -441,11 +472,64 @@ async function executePreflightForSchedule(
   } catch (error) {
     const duration = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStep = currentStep // Capturar o step onde ocorreu o erro
 
     addLog("error", `Erro no Pre-flight: ${errorMessage}`, {
       step: currentStep,
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    // ==========================================================================
+    // ENVIAR E-MAIL DE ERRO (se configurado)
+    // ==========================================================================
+    // Buscar configurações de notificação
+    const { data: notifyConfigs } = await supabaseClient
+      .from("app_config")
+      .select("value")
+      .eq("key", "notification_email")
+      .single()
+
+    const notificationEmail = notifyConfigs?.value
+    const notifyEnabled = schedule.preflight_notify_on_failure
+
+    if (notificationEmail && notifyEnabled) {
+      const emailSent = await sendNotificationEmail(
+        notificationEmail,
+        `⚠️ Pre-flight FALHOU - ${schedule.name}`,
+        generatePreflightErrorEmailHtml(
+          schedule.name,
+          errorMessage,
+          errorStep,
+          schedule.preflight_hours_before,
+          schedule.trigger_datetime
+        )
+      )
+      addLog(
+        "sending_notification",
+        emailSent
+          ? "E-mail de erro enviado"
+          : "E-mail não enviado (falha no envio)",
+        {
+          email: notificationEmail,
+          sent: emailSent,
+          configured: true,
+          enabled: true,
+          type: "preflight_error",
+        }
+      )
+    } else {
+      addLog(
+        "sending_notification",
+        !notificationEmail
+          ? "E-mail não configurado - notificação pulada"
+          : "Notificações de erro desabilitadas",
+        {
+          configured: !!notificationEmail,
+          enabled: notifyEnabled,
+          type: "preflight_error",
+        }
+      )
+    }
 
     // Salvar log de erro
     await supabaseClient.from("execution_logs").insert({
@@ -462,34 +546,11 @@ async function executePreflightForSchedule(
       response_payload: {
         success: false,
         error: errorMessage,
-        step: currentStep,
+        step: errorStep,
         log: executionLog,
       },
       duration_ms: duration,
     })
-
-    // Enviar e-mail de erro (se configurado)
-    if (schedule.preflight_notify_on_failure) {
-      const { data: notifyConfigs } = await supabaseClient
-        .from("app_config")
-        .select("value")
-        .eq("key", "notification_email")
-        .single()
-
-      if (notifyConfigs?.value) {
-        await sendNotificationEmail(
-          notifyConfigs.value,
-          `⚠️ Pre-flight FALHOU - ${schedule.name}`,
-          generatePreflightErrorEmailHtml(
-            schedule.name,
-            errorMessage,
-            currentStep,
-            schedule.preflight_hours_before,
-            schedule.trigger_datetime
-          )
-        )
-      }
-    }
 
     return {
       scheduleId: schedule.id,
