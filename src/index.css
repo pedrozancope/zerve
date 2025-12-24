@@ -20,7 +20,7 @@
     --primary: 247 34% 29%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 9 100% 64%;
+    --secondary: 67 90% 59%;
     --secondary-foreground: 222 22% 15%;
 
     --muted: 220 14% 96%;
@@ -142,7 +142,7 @@
   }
 
   .status-badge-success {
-    @apply bg-success/10 text-success;
+    @apply bg-secondary/10 text-success;
   }
 
   .status-badge-error {
