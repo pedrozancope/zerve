@@ -331,6 +331,18 @@ async function sendNotificationEmail(
 }
 
 /**
+ * Converte data de MM/DD/YYYY para DD/MM/YYYY apenas para exibição
+ */
+function formatDateForDisplay(dateStr: string): string {
+  const parts = dateStr.split("/")
+  if (parts.length === 3) {
+    // Converte MM/DD/YYYY para DD/MM/YYYY
+    return `${parts[1]}/${parts[0]}/${parts[2]}`
+  }
+  return dateStr
+}
+
+/**
  * Gera HTML do e-mail de sucesso
  */
 function generateSuccessEmailHtml(
@@ -339,6 +351,8 @@ function generateSuccessEmailHtml(
   isTest: boolean,
   isDryRun: boolean = false
 ): string {
+  // Formatar data apenas para exibição no email (DD/MM/YYYY)
+  const displayDate = formatDateForDisplay(reservationDate)
   const dryRunBanner = isDryRun
     ? `
     <div style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f59e0b;">
@@ -359,7 +373,7 @@ function generateSuccessEmailHtml(
       } 0%, ${
     isDryRun ? "#d97706" : "#16a34a"
   } 100%); padding: 24px; border-radius: 12px 12px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">🎾 ${dryRunBadge}${testBadge}Reserva Confirmada!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">${dryRunBadge}${testBadge}Reserva Confirmada!</h1>
         <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">
           ${
             isDryRun
@@ -374,7 +388,7 @@ function generateSuccessEmailHtml(
         ${dryRunBanner}
         
         <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p style="margin: 0;"><strong>Data:</strong> ${reservationDate}</p>
+          <p style="margin: 0;"><strong>Data:</strong> ${displayDate}</p>
           <p style="margin: 8px 0 0;"><strong>Horário:</strong> ${hour
             .toString()
             .padStart(2, "0")}:00</p>
