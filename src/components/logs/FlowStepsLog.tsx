@@ -246,9 +246,8 @@ export function FlowStepsLog({
         <div className="space-y-2">
           {flowSteps
             .filter((step) => {
-              // Filtrar o step de notificação quando houver erro
-              // Ele será renderizado como parte do step de erro
-              if (step.id === "sending_notification" && !result?.success) {
+              // Filtrar o step de notificação - ele será renderizado como parte do step de erro ou sucesso
+              if (step.id === "sending_notification") {
                 return false
               }
               return true
@@ -257,11 +256,24 @@ export function FlowStepsLog({
               const status = getStepStatus(step.id)
               const logEntry = getLogEntryForStep(step.id)
               const isErrorStep = result?.step === step.id && !result?.success
+              const isSuccessStep = step.id === "success" && result?.success
 
-              // Buscar log de notificação se este é o step de erro
-              const notificationLog = isErrorStep
-                ? result?.log?.find((l) => l.step === "sending_notification")
-                : null
+              // Debug simples
+              if (step.id === "success" && result?.log) {
+                console.log("=== TODOS OS STEPS ===")
+                result.log.forEach((l, i) => {
+                  console.log(`${i}: ${l.step}`)
+                })
+              }
+
+              // Buscar log de notificação se este é o step de erro ou sucesso
+              const notificationLog =
+                result?.log?.find((l) => l.step === "sending_notification") ||
+                null
+
+              // Mostrar card de notificação apenas nos steps finais (erro ou sucesso)
+              const showNotificationCard =
+                (isErrorStep || isSuccessStep) && notificationLog
 
               // Type assertion para os details da notificação
               const notificationDetails = notificationLog?.details as
@@ -338,8 +350,8 @@ export function FlowStepsLog({
                       )}
                     </div>
 
-                    {/* Indicador de notificação no step de erro */}
-                    {isErrorStep && notificationLog && (
+                    {/* Indicador de notificação no step de erro ou sucesso */}
+                    {showNotificationCard && (
                       <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700">
                         <Bell
                           className={`h-4 w-4 mt-0.5 flex-shrink-0 ${

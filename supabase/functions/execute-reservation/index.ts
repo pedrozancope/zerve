@@ -899,6 +899,66 @@ serve(async (req) => {
       isDryRun,
     })
 
+    // ==========================================================================
+    // ENVIAR E-MAIL DE SUCESSO (antes de salvar o log para incluir no flow_steps)
+    // ==========================================================================
+    currentStep = "sending_notification"
+
+    // Buscar configurações de notificação
+    const { data: notifyConfigs } = await supabaseClient
+      .from("app_config")
+      .select("key, value")
+      .in("key", ["notification_email", "notify_on_success"])
+
+    const notificationEmail = notifyConfigs?.find(
+      (c) => c.key === "notification_email"
+    )?.value
+    const notifyOnSuccess =
+      notifyConfigs?.find((c) => c.key === "notify_on_success")?.value !==
+      "false"
+
+    if (notificationEmail && notifyOnSuccess) {
+      const subjectPrefix = isDryRun
+        ? "🔍 [DRY RUN] "
+        : isTestMode
+        ? "(TESTE) "
+        : ""
+      const emailSent = await sendNotificationEmail(
+        notificationEmail,
+        `🎾 ${subjectPrefix}Reserva Confirmada - ${reservationHour}:00`,
+        generateSuccessEmailHtml(
+          reservationDate,
+          reservationHour!,
+          isTestMode,
+          isDryRun
+        )
+      )
+      addLog(
+        "sending_notification",
+        emailSent
+          ? `E-mail de sucesso enviado${isDryRun ? " (Dry Run)" : ""}`
+          : "E-mail não enviado (sem API key)",
+        {
+          email: notificationEmail,
+          sent: emailSent,
+          isDryRun,
+          type: "success",
+        }
+      )
+    } else {
+      addLog(
+        "sending_notification",
+        !notificationEmail
+          ? "E-mail não configurado - notificação pulada"
+          : "Notificações de sucesso desabilitadas",
+        {
+          configured: !!notificationEmail,
+          enabled: notifyOnSuccess,
+          type: "success",
+        }
+      )
+    }
+
     // Calculate actual reservation date for database (ISO format)
     const targetDate = new Date()
     if (!isTestMode) {
@@ -1000,64 +1060,6 @@ serve(async (req) => {
           )
         }
       }
-    }
-
-    // ==========================================================================
-    // ENVIAR E-MAIL DE SUCESSO
-    // ==========================================================================
-    currentStep = "sending_notification"
-
-    // Buscar configurações de notificação
-    const { data: notifyConfigs } = await supabaseClient
-      .from("app_config")
-      .select("key, value")
-      .in("key", ["notification_email", "notify_on_success"])
-
-    const notificationEmail = notifyConfigs?.find(
-      (c) => c.key === "notification_email"
-    )?.value
-    const notifyOnSuccess =
-      notifyConfigs?.find((c) => c.key === "notify_on_success")?.value !==
-      "false"
-
-    if (notificationEmail && notifyOnSuccess) {
-      const subjectPrefix = isDryRun
-        ? "🔍 [DRY RUN] "
-        : isTestMode
-        ? "(TESTE) "
-        : ""
-      const emailSent = await sendNotificationEmail(
-        notificationEmail,
-        `🎾 ${subjectPrefix}Reserva Confirmada - ${reservationHour}:00`,
-        generateSuccessEmailHtml(
-          reservationDate,
-          reservationHour!,
-          isTestMode,
-          isDryRun
-        )
-      )
-      addLog(
-        "sending_notification",
-        emailSent
-          ? `E-mail de sucesso enviado${isDryRun ? " (Dry Run)" : ""}`
-          : "E-mail não enviado (sem API key)",
-        {
-          email: notificationEmail,
-          sent: emailSent,
-          isDryRun,
-        }
-      )
-    } else {
-      addLog(
-        "sending_notification",
-        !notificationEmail
-          ? "E-mail não configurado - notificação pulada"
-          : "Notificações de sucesso desabilitadas",
-        {
-          configured: !!notificationEmail,
-          enabled: notifyOnSuccess,
-        }
-      )
     }
 
     // Return success response
