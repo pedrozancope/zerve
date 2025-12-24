@@ -46,8 +46,9 @@ export function FlowStepsLog({
   executionType = "reservation",
 }: FlowStepsLogProps) {
   // Determina o tipo de execução efetivo
-  const effectiveType: ExecutionType = executionType || (isTest ? "test" : "reservation")
-  
+  const effectiveType: ExecutionType =
+    executionType || (isTest ? "test" : "reservation")
+
   // Obtém os steps para o tipo de execução
   const flowSteps = getStepsForType(effectiveType)
 
@@ -78,7 +79,7 @@ export function FlowStepsLog({
       // Para o step de notificação, verificar os detalhes
       if (stepId === "sending_notification") {
         const details = logEntry.details as NotificationDetails | undefined
-        
+
         // Se tem details.sent = true, foi enviado com sucesso
         if (details?.sent === true) {
           return "success"
@@ -167,12 +168,24 @@ export function FlowStepsLog({
     const getNotificationType = () => {
       const type = details?.type || ""
       if (type.includes("error") || type.includes("erro")) {
-        return { label: "Notificação de Erro", color: "text-red-600 dark:text-red-400", icon: "❌" }
+        return {
+          label: "Notificação de Erro",
+          color: "text-red-600 dark:text-red-400",
+          icon: "❌",
+        }
       }
       if (type.includes("preflight")) {
-        return { label: "Notificação de Pre-flight", color: "text-sky-600 dark:text-sky-400", icon: "✈️" }
+        return {
+          label: "Notificação de Pre-flight",
+          color: "text-sky-600 dark:text-sky-400",
+          icon: "✈️",
+        }
       }
-      return { label: "Notificação de Sucesso", color: "text-green-600 dark:text-green-400", icon: "✅" }
+      return {
+        label: "Notificação de Sucesso",
+        color: "text-green-600 dark:text-green-400",
+        icon: "✅",
+      }
     }
 
     const notificationType = getNotificationType()
@@ -204,12 +217,15 @@ export function FlowStepsLog({
                   ✗ FALHOU
                 </Badge>
               )}
-              {(details?.configured === false || details?.enabled === false) && (
+              {(details?.configured === false ||
+                details?.enabled === false) && (
                 <Badge
                   variant="outline"
                   className="text-[10px] h-4 px-1.5 text-amber-600 border-amber-300"
                 >
-                  {details?.configured === false ? "⊘ NÃO CONFIG." : "⊘ DESABILITADO"}
+                  {details?.configured === false
+                    ? "⊘ NÃO CONFIG."
+                    : "⊘ DESABILITADO"}
                 </Badge>
               )}
             </div>
@@ -246,7 +262,8 @@ export function FlowStepsLog({
             {!details?.sent && details?.configured === false && (
               <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-500 mt-1">
                 <span>
-                  💡 Configure o e-mail nas Configurações para receber notificações
+                  💡 Configure o e-mail nas Configurações para receber
+                  notificações
                 </span>
               </div>
             )}
@@ -303,7 +320,10 @@ export function FlowStepsLog({
                 </Badge>
               )}
               {status === "skipped" && (
-                <Badge variant="outline" className="text-xs h-5 text-amber-600 border-amber-300">
+                <Badge
+                  variant="outline"
+                  className="text-xs h-5 text-amber-600 border-amber-300"
+                >
                   PULADO
                 </Badge>
               )}
@@ -315,7 +335,9 @@ export function FlowStepsLog({
   }
 
   // Filtrar steps para exibição - remover sending_notification pois será mostrado dentro do step final
-  const visibleSteps = flowSteps.filter((step) => step.id !== "sending_notification")
+  const visibleSteps = flowSteps.filter(
+    (step) => step.id !== "sending_notification"
+  )
 
   return (
     <Card>
@@ -402,13 +424,17 @@ export function FlowStepsLog({
                     </div>
                     {logEntry?.timestamp && (
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(logEntry.timestamp).toLocaleTimeString("pt-BR")}
+                        {new Date(logEntry.timestamp).toLocaleTimeString(
+                          "pt-BR"
+                        )}
                       </span>
                     )}
                   </div>
 
                   {/* Mostrar card de notificação no step final (erro ou sucesso) */}
-                  {isFinalStep && notificationLog && renderNotificationDetails(notificationLog)}
+                  {isFinalStep &&
+                    notificationLog &&
+                    renderNotificationDetails(notificationLog)}
 
                   {/* Detalhes do erro */}
                   {isErrorStep && result?.error && (
@@ -416,11 +442,12 @@ export function FlowStepsLog({
                       <p className="text-sm text-red-800 dark:text-red-200 font-medium">
                         Erro ao reservar quadra
                       </p>
-                      {result.details && Object.keys(result.details).length > 0 && (
-                        <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">
-                          {JSON.stringify(result.details, null, 2)}
-                        </pre>
-                      )}
+                      {result.details &&
+                        Object.keys(result.details).length > 0 && (
+                          <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">
+                            {JSON.stringify(result.details, null, 2)}
+                          </pre>
+                        )}
                     </div>
                   )}
 
