@@ -1037,7 +1037,7 @@ serve(async (req) => {
         )
       )
       addLog(
-        "notification",
+        "sending_notification",
         emailSent
           ? `E-mail de sucesso enviado${isDryRun ? " (Dry Run)" : ""}`
           : "E-mail não enviado (sem API key)",
@@ -1045,6 +1045,17 @@ serve(async (req) => {
           email: notificationEmail,
           sent: emailSent,
           isDryRun,
+        }
+      )
+    } else {
+      addLog(
+        "sending_notification",
+        !notificationEmail
+          ? "E-mail não configurado - notificação pulada"
+          : "Notificações de sucesso desabilitadas",
+        {
+          configured: !!notificationEmail,
+          enabled: notifyOnSuccess,
         }
       )
     }
@@ -1121,6 +1132,78 @@ serve(async (req) => {
         userId = configData?.[0]?.user_id || null
       }
 
+      // ==========================================================================
+      // ENVIAR E-MAIL DE ERRO ANTES DE SALVAR (para incluir no flow_steps)
+      // ==========================================================================
+      const { data: notifyConfigs } = await supabaseClient
+        .from("app_config")
+        .select("key, value")
+        .in("key", ["notification_email", "notify_on_failure"])
+
+      const notificationEmail = notifyConfigs?.find(
+        (c) => c.key === "notification_email"
+      )?.value
+      const notifyOnFailure =
+        notifyConfigs?.find((c) => c.key === "notify_on_failure")?.value !==
+        "false"
+
+      if (notificationEmail && notifyOnFailure) {
+        const subjectPrefix = isDryRun
+          ? "🔍 [DRY RUN] "
+          : isTestMode
+          ? "(TESTE) "
+          : ""
+        const emailSent = await sendNotificationEmail(
+          notificationEmail,
+          `❌ ${subjectPrefix}Erro na Reserva - ${reservationHour || "N/A"}:00`,
+          generateErrorEmailHtml(
+            errorMessage,
+            currentStep,
+            reservationHour || 0,
+            isTestMode,
+            {
+              reservationDate: errorDetails.reservationDate,
+              idArea: errorDetails.idArea,
+              apiStatus: errorDetails.status,
+              apiMessage: errorDetails.msg,
+              apiResponse: errorDetails.reservationResponse || errorDetails,
+              stack: error instanceof Error ? error.stack : undefined,
+              duration,
+              scheduleId,
+              scheduleName: schedule?.name,
+              isDryRun,
+            }
+          )
+        )
+        addLog(
+          "sending_notification",
+          emailSent
+            ? `E-mail de erro enviado com sucesso`
+            : "Falha ao enviar e-mail de erro (sem API key)",
+          {
+            email: notificationEmail,
+            sent: emailSent,
+            type: "error",
+            isDryRun,
+          }
+        )
+      } else {
+        addLog(
+          "sending_notification",
+          !notificationEmail
+            ? "E-mail não configurado - notificação de erro pulada"
+            : "Notificações de erro desabilitadas",
+          {
+            configured: !!notificationEmail,
+            enabled: notifyOnFailure,
+            type: "error",
+          }
+        )
+      }
+
+      // ==========================================================================
+      // AGORA SIM, SALVAR O LOG COM O flow_steps COMPLETO
+      // ==========================================================================
       const { data: logData } = await supabaseClient
         .from("execution_logs")
         .insert({
@@ -1149,49 +1232,6 @@ serve(async (req) => {
         .single()
 
       executionLogId = logData?.id
-
-      // Enviar e-mail de erro
-      const { data: notifyConfigs } = await supabaseClient
-        .from("app_config")
-        .select("key, value")
-        .in("key", ["notification_email", "notify_on_failure"])
-
-      const notificationEmail = notifyConfigs?.find(
-        (c) => c.key === "notification_email"
-      )?.value
-      const notifyOnFailure =
-        notifyConfigs?.find((c) => c.key === "notify_on_failure")?.value !==
-        "false"
-
-      if (notificationEmail && notifyOnFailure) {
-        const subjectPrefix = isDryRun
-          ? "🔍 [DRY RUN] "
-          : isTestMode
-          ? "(TESTE) "
-          : ""
-        await sendNotificationEmail(
-          notificationEmail,
-          `❌ ${subjectPrefix}Erro na Reserva - ${reservationHour || "N/A"}:00`,
-          generateErrorEmailHtml(
-            errorMessage,
-            currentStep,
-            reservationHour || 0,
-            isTestMode,
-            {
-              reservationDate: errorDetails.reservationDate,
-              idArea: errorDetails.idArea,
-              apiStatus: errorDetails.status,
-              apiMessage: errorDetails.msg,
-              apiResponse: errorDetails.reservationResponse || errorDetails,
-              stack: error instanceof Error ? error.stack : undefined,
-              duration,
-              scheduleId,
-              scheduleName: schedule?.name,
-              isDryRun,
-            }
-          )
-        )
-      }
     } catch (logError) {
       log.error("Erro ao salvar log de erro", {
         error: logError instanceof Error ? logError.message : String(logError),

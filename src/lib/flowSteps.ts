@@ -103,8 +103,7 @@ export const TEST_FLOW_STEPS: FlowStep[] = RESERVATION_FLOW_STEPS.filter(
   (step) =>
     step.id !== "getting_schedule" &&
     step.id !== "saving_execution_log" &&
-    step.id !== "saving_reservation" &&
-    step.id !== "sending_notification"
+    step.id !== "saving_reservation"
 )
 
 // Steps para Pre-flight (validação de token)
@@ -132,6 +131,12 @@ export const PREFLIGHT_FLOW_STEPS: FlowStep[] = [
     name: "Atualizar Token",
     icon: RefreshCw,
     description: "Salvar novo refresh token",
+  },
+  {
+    id: "sending_notification",
+    name: "Notificação",
+    icon: Bell,
+    description: "Enviar e-mail de notificação",
   },
   {
     id: "success",
