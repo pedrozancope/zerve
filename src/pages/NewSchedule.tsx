@@ -845,18 +845,6 @@ export default function NewSchedule() {
                 </div>
               </div>
 
-              {/* Cron Expression */}
-              {triggerMode === "reservation_date" && (
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">
-                    Cron Expression (AWS EventBridge)
-                  </Label>
-                  <code className="block p-3 rounded-lg bg-muted text-sm font-mono">
-                    {cronExpression}
-                  </code>
-                </div>
-              )}
-
               {/* Próximos Disparos - Para ambos os modos */}
               {upcomingTriggers.length > 0 && (
                 <div className="space-y-3">
