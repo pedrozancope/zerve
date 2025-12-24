@@ -442,6 +442,10 @@ function generateErrorEmailHtml(
   }
 ): string {
   const isDryRun = details?.isDryRun || false
+  // Formatar data da reserva para exibição no email (DD/MM/YYYY)
+  const displayReservationDate = details?.reservationDate 
+    ? formatDateForDisplay(details.reservationDate) 
+    : undefined
   const stepNames: Record<string, string> = {
     initialization: "Inicialização",
     parsing_payload: "Processamento do Payload",
@@ -550,8 +554,8 @@ function generateErrorEmailHtml(
             hour ? hour.toString().padStart(2, "0") + ":00" : "N/A"
           }</p>
           ${
-            details?.reservationDate
-              ? `<p style="margin: 0 0 8px 0;"><strong>Data da reserva:</strong> ${details.reservationDate}</p>`
+            displayReservationDate
+              ? `<p style="margin: 0 0 8px 0;"><strong>Data da reserva:</strong> ${displayReservationDate}</p>`
               : ""
           }
           ${
