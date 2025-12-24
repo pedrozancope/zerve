@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Search,
   Bell,
-  Save,
   Plane,
   type LucideIcon,
 } from "lucide-react"
@@ -88,7 +87,7 @@ export const ALL_FLOW_STEPS: FlowStep[] = [
   // Steps específicos de reservation/test
   {
     id: "making_reservation",
-    name: "Fazer Reserva",
+    name: "Enviar Requisição",
     icon: Calendar,
     description: "Iniciando reserva na API do Speed...",
     descriptionByType: {
@@ -102,21 +101,6 @@ export const ALL_FLOW_STEPS: FlowStep[] = [
     icon: Database,
     description: "Resposta da reserva recebida",
     appliesTo: ["reservation", "test"],
-  },
-  // Salvar logs (apenas reservation real)
-  {
-    id: "saving_execution_log",
-    name: "Salvar Log",
-    icon: Save,
-    description: "Registrar execução no banco",
-    appliesTo: ["reservation"],
-  },
-  {
-    id: "saving_reservation",
-    name: "Salvar Reserva",
-    icon: Save,
-    description: "Registrar reserva no banco",
-    appliesTo: ["reservation"],
   },
   // Notificação - comum a todos
   {
