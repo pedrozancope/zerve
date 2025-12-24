@@ -91,11 +91,15 @@ export default function Dashboard() {
   }
 
   // Calcular data da reserva baseado no modo e no próximo disparo
-  const getReservationDate = (_schedule: any, nextTrigger: Date | null) => {
+  const getReservationDate = (schedule: any, nextTrigger: Date | null) => {
     if (!nextTrigger) return null
 
-    // IMPORTANTE: Em AMBOS os modos, a reserva é SEMPRE +10 dias do disparo
-    // O sistema dispara 10 dias antes da data desejada
+    // Ajustar lógica para "trigger_date": data da reserva == data do disparo
+    if (schedule.triggerMode === "trigger_date") {
+      return nextTrigger
+    }
+
+    // Para outros modos, adicionar 10 dias ao disparo
     const reservationDate = new Date(nextTrigger)
     reservationDate.setDate(reservationDate.getDate() + 10)
     return reservationDate

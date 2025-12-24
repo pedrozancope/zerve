@@ -23,20 +23,14 @@ export function UpcomingReservations({
   reservations,
   isLoading,
 }: UpcomingReservationsProps) {
-  const getDaysUntil = (date: Date) => {
+  // Calcula diferença de tempo (minutos, horas, dias) entre agora e a data alvo
+  const getTimeDiff = (target: Date) => {
     const now = new Date()
-    const target = new Date(date)
-    const diffTime = target.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-
-  const getHoursUntil = (date: Date) => {
-    const now = new Date()
-    const target = new Date(date)
-    const diffTime = target.getTime() - now.getTime()
-    const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
-    return diffHours
+    const diffMs = target.getTime() - now.getTime()
+    const diffMin = Math.round(diffMs / (1000 * 60))
+    const diffH = Math.floor(diffMin / 60)
+    const diffD = Math.floor(diffH / 24)
+    return { diffMs, diffMin, diffH, diffD }
   }
 
   if (isLoading) {
@@ -90,44 +84,46 @@ export function UpcomingReservations({
       <CardContent>
         <div className="space-y-3">
           {reservations.map((reservation) => {
-            const daysUntilReservation = getDaysUntil(
+            const { diffMin, diffH, diffD } = getTimeDiff(
+              reservation.triggerDate
+            )
+            const { diffD: diffDReservation } = getTimeDiff(
               reservation.reservationDate
             )
-            const hoursUntilTrigger = getHoursUntil(reservation.triggerDate)
-            const daysUntilTrigger = Math.floor(hoursUntilTrigger / 24)
 
-            // Determinar label do badge baseado no tempo até o disparo
+            // Badge: tempo até o disparo
             let badgeLabel = ""
             let badgeVariant: "warning" | "outline" | "default" = "outline"
-
-            if (hoursUntilTrigger < 0) {
+            if (diffMin < 0) {
               badgeLabel = "Executando"
               badgeVariant = "warning"
-            } else if (hoursUntilTrigger < 1) {
-              const minutesUntil = Math.floor((hoursUntilTrigger * 60) % 60)
-              badgeLabel = `${minutesUntil}min`
+            } else if (diffMin < 60) {
+              badgeLabel = `${diffMin} min`
               badgeVariant = "warning"
-            } else if (hoursUntilTrigger < 24) {
-              badgeLabel = `${Math.floor(hoursUntilTrigger)}h`
+            } else if (diffH < 24) {
+              badgeLabel = `${diffH} h`
               badgeVariant = "warning"
-            } else if (daysUntilTrigger === 1) {
+            } else if (diffD === 1) {
               badgeLabel = "Amanhã"
               badgeVariant = "warning"
             } else {
-              badgeLabel = `${daysUntilTrigger} dias`
+              badgeLabel = `${diffD} dias`
               badgeVariant = "outline"
             }
 
             // Label da reserva baseado no tempo até a data da reserva
             let reservationLabel = ""
-            if (daysUntilReservation < 0) {
+            if (diffDReservation < 0) {
               reservationLabel = "Passou"
-            } else if (daysUntilReservation === 0) {
+            } else if (diffDReservation === 0) {
               reservationLabel = "Reserva hoje"
-            } else if (daysUntilReservation === 1) {
+            } else if (diffDReservation === 1) {
               reservationLabel = "Reserva amanhã"
             } else {
-              reservationLabel = `Reserva em ${daysUntilReservation} dias`
+              reservationLabel =
+                reservation.triggerMode === "trigger_date"
+                  ? "Reserva na data específica"
+                  : `Reserva em ${diffDReservation} dias`
             }
 
             return (
