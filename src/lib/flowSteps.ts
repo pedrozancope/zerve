@@ -198,7 +198,7 @@ export const STEP_NAMES: Record<string, string> = {
 // Função para obter steps relevantes baseado no contexto
 export function getRelevantSteps(
   isTest: boolean,
-  logEntries?: LogEntry[],
+  _logEntries?: LogEntry[],
   executionType?: ExecutionType
 ): FlowStep[] {
   // Determina o tipo de execução
