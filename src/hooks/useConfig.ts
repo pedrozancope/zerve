@@ -194,3 +194,18 @@ export function useTokenStatus() {
     isLoading,
   }
 }
+
+// Hook para configuração de dias consecutivos entre reservas
+export function useConsecutiveDaysConfig() {
+  const { data: warningEnabledConfig, isLoading: loadingWarning } =
+    useConfigByKey("consecutive_days_warning")
+  const { data: minDaysConfig, isLoading: loadingMinDays } = useConfigByKey(
+    "min_days_between_reservations"
+  )
+
+  return {
+    warningEnabled: warningEnabledConfig?.value !== "false", // Padrão: true
+    minDaysBetween: parseInt(minDaysConfig?.value || "1", 10), // Padrão: 1 dia
+    isLoading: loadingWarning || loadingMinDays,
+  }
+}

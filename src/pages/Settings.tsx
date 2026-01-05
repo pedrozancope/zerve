@@ -8,6 +8,8 @@ import {
   EyeOff,
   CheckCircle2,
   Mail,
+  CalendarDays,
+  AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,7 +26,11 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { useConfigByKey, useUpsertConfig } from "@/hooks/useConfig"
+import {
+  useConfigByKey,
+  useUpsertConfig,
+  useConsecutiveDaysConfig,
+} from "@/hooks/useConfig"
 
 // Função utilitária para chamada da Edge Function
 async function testarReservaAgora() {
@@ -64,12 +70,16 @@ export default function Settings() {
     emailOnSuccess: true,
     emailOnFailure: true,
   })
+  const [consecutiveDaysWarning, setConsecutiveDaysWarning] = useState(true)
+  const [minDaysBetween, setMinDaysBetween] = useState(1)
 
   const { data: tokenConfig, isLoading: loadingToken } =
     useConfigByKey("auth_token")
   const { data: notifySuccessConfig } = useConfigByKey("notify_on_success")
   const { data: notifyFailureConfig } = useConfigByKey("notify_on_failure")
   const { data: emailConfig } = useConfigByKey("notification_email")
+  const { warningEnabled, minDaysBetween: savedMinDays } =
+    useConsecutiveDaysConfig()
 
   const upsertConfig = useUpsertConfig()
 
@@ -93,6 +103,12 @@ export default function Settings() {
       setNotificationEmail(emailConfig.value)
     }
   }, [emailConfig])
+
+  // Carregar configurações de dias consecutivos
+  useEffect(() => {
+    setConsecutiveDaysWarning(warningEnabled)
+    setMinDaysBetween(savedMinDays)
+  }, [warningEnabled, savedMinDays])
 
   const handleUpdateToken = async () => {
     if (!refreshToken.trim()) {
@@ -141,6 +157,34 @@ export default function Settings() {
     } catch (error) {
       console.error(error)
       toast.error("Erro ao atualizar e-mail")
+    }
+  }
+
+  const handleConsecutiveDaysWarningChange = async (enabled: boolean) => {
+    setConsecutiveDaysWarning(enabled)
+    try {
+      await upsertConfig.mutateAsync({
+        key: "consecutive_days_warning",
+        value: enabled.toString(),
+      })
+      toast.success("Configuração atualizada!")
+    } catch (error) {
+      console.error(error)
+      toast.error("Erro ao atualizar configuração")
+    }
+  }
+
+  const handleMinDaysBetweenChange = async (days: number) => {
+    setMinDaysBetween(days)
+    try {
+      await upsertConfig.mutateAsync({
+        key: "min_days_between_reservations",
+        value: days.toString(),
+      })
+      toast.success("Configuração atualizada!")
+    } catch (error) {
+      console.error(error)
+      toast.error("Erro ao atualizar configuração")
     }
   }
 
@@ -379,6 +423,86 @@ export default function Settings() {
                 disabled={upsertConfig.isPending}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Configuração de Dias Consecutivos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Proteção de Reservas Consecutivas
+            </CardTitle>
+            <CardDescription>
+              Configure alertas para evitar reservas em dias consecutivos
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-warning">
+                    Por que isso é importante?
+                  </p>
+                  <p className="text-muted-foreground mt-1">
+                    Reservas em dias consecutivos podem ser desnecessárias ou
+                    até não permitidas. Ative este aviso para ser alertado antes
+                    de criar agendamentos com datas muito próximas.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Aviso de Dias Consecutivos</p>
+                <p className="text-sm text-muted-foreground">
+                  Exibir confirmação ao criar reservas em dias muito próximos
+                </p>
+              </div>
+              <Switch
+                checked={consecutiveDaysWarning}
+                onCheckedChange={handleConsecutiveDaysWarningChange}
+                disabled={upsertConfig.isPending}
+              />
+            </div>
+
+            {consecutiveDaysWarning && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <Label htmlFor="minDays">Dias mínimos entre reservas</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="minDays"
+                      type="number"
+                      min={1}
+                      max={7}
+                      value={minDaysBetween}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value, 10)
+                        if (value >= 1 && value <= 7) {
+                          handleMinDaysBetweenChange(value)
+                        }
+                      }}
+                      className="w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {minDaysBetween === 1 ? "dia" : "dias"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Você será alertado se tentar criar uma reserva com menos de{" "}
+                    <strong>{minDaysBetween}</strong>{" "}
+                    {minDaysBetween === 1 ? "dia" : "dias"} de intervalo de uma
+                    reserva existente.
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

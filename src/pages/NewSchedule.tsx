@@ -12,6 +12,7 @@ import {
   XCircle,
   Plane,
   Zap,
+  AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,6 +29,16 @@ import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import {
   DAY_NAMES_PT,
@@ -43,8 +54,10 @@ import {
   useUpdateSchedule,
   useSchedule,
   useTimeSlots,
+  useSchedules,
 } from "@/hooks/useSchedules"
 import { useLogs } from "@/hooks/useLogs"
+import { useConsecutiveDaysConfig } from "@/hooks/useConfig"
 
 // Horários disponíveis para disparo
 const TRIGGER_HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -118,8 +131,10 @@ export default function NewSchedule() {
 
   const { data: schedule, isLoading: loadingSchedule } = useSchedule(id)
   const { data: timeSlots = [] } = useTimeSlots()
+  const { data: allSchedules = [] } = useSchedules()
   const createSchedule = useCreateSchedule()
   const updateSchedule = useUpdateSchedule()
+  const { warningEnabled, minDaysBetween } = useConsecutiveDaysConfig()
   const hasLoadedSchedule = useRef<string | null>(null)
   const [formData, setFormData] = useState<ScheduleFormData>({
     name: "",
@@ -144,6 +159,13 @@ export default function NewSchedule() {
   const [preflightNotifyOnSuccess, setPreflightNotifyOnSuccess] =
     useState(false)
   const [preflightNotifyOnFailure, setPreflightNotifyOnFailure] = useState(true)
+
+  // Estado para o diálogo de confirmação de dias consecutivos
+  const [showConsecutiveDaysDialog, setShowConsecutiveDaysDialog] =
+    useState(false)
+  const [consecutiveDaysConflicts, setConsecutiveDaysConflicts] = useState<
+    Array<{ scheduleName: string; dayOfWeek: number; daysDiff: number }>
+  >([])
 
   // Calcular dia da reserva automaticamente quando for trigger_date
   useEffect(() => {
@@ -307,6 +329,52 @@ export default function NewSchedule() {
 
   const upcomingTriggers = getUpcomingTriggers()
 
+  // Função para calcular a diferença de dias entre dois dias da semana (0-6)
+  const getDaysDifference = (dayA: number, dayB: number): number => {
+    // Calcula a menor distância entre os dias (considerando que a semana é circular)
+    const diff = Math.abs(dayA - dayB)
+    return Math.min(diff, 7 - diff)
+  }
+
+  // Função para verificar se há conflitos de dias consecutivos
+  const checkConsecutiveDaysConflict = (): Array<{
+    scheduleName: string
+    dayOfWeek: number
+    daysDiff: number
+  }> => {
+    if (!warningEnabled) return []
+
+    const newDayOfWeek = formData.reservationDayOfWeek
+    const conflicts: Array<{
+      scheduleName: string
+      dayOfWeek: number
+      daysDiff: number
+    }> = []
+
+    // Filtrar apenas agendamentos ativos (excluindo o atual se for edição)
+    const activeSchedules = allSchedules.filter(
+      (s) => s.isActive && (!isEditMode || s.id !== id)
+    )
+
+    for (const schedule of activeSchedules) {
+      const daysDiff = getDaysDifference(
+        newDayOfWeek,
+        schedule.reservationDayOfWeek
+      )
+
+      // Se a diferença de dias for menor que o mínimo configurado, é um conflito
+      if (daysDiff > 0 && daysDiff <= minDaysBetween) {
+        conflicts.push({
+          scheduleName: schedule.name,
+          dayOfWeek: schedule.reservationDayOfWeek,
+          daysDiff,
+        })
+      }
+    }
+
+    return conflicts
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -321,6 +389,29 @@ export default function NewSchedule() {
       return
     }
 
+    // Encontrar o time_slot_id correto
+    const timeSlot = timeSlots.find(
+      (ts: any) => ts.hour === formData.timeSlotHour
+    )
+    if (!timeSlot) {
+      toast.error("Horário inválido")
+      return
+    }
+
+    // Verificar conflitos de dias consecutivos antes de salvar
+    const conflicts = checkConsecutiveDaysConflict()
+    if (conflicts.length > 0) {
+      setConsecutiveDaysConflicts(conflicts)
+      setShowConsecutiveDaysDialog(true)
+      return
+    }
+
+    // Se não houver conflitos, salvar normalmente
+    await saveSchedule()
+  }
+
+  // Função para salvar o agendamento (chamada após confirmação ou se não houver conflitos)
+  const saveSchedule = async () => {
     // Encontrar o time_slot_id correto
     const timeSlot = timeSlots.find(
       (ts: any) => ts.hour === formData.timeSlotHour
@@ -381,6 +472,12 @@ export default function NewSchedule() {
       // Error handling is done in the hooks
       console.error(error)
     }
+  }
+
+  // Handler para confirmar criação mesmo com conflitos
+  const handleConfirmConsecutiveDays = async () => {
+    setShowConsecutiveDaysDialog(false)
+    await saveSchedule()
   }
 
   const isSubmitting = createSchedule.isPending || updateSchedule.isPending
@@ -979,6 +1076,62 @@ export default function NewSchedule() {
           </div>
         )}
       </form>
+
+      {/* AlertDialog para confirmação de dias consecutivos */}
+      <AlertDialog
+        open={showConsecutiveDaysDialog}
+        onOpenChange={setShowConsecutiveDaysDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Reservas em Dias Próximos
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Este agendamento cria reservas para{" "}
+                <strong>{DAY_NAMES_PT[formData.reservationDayOfWeek]}</strong>,
+                que está muito próximo de outros agendamentos ativos:
+              </p>
+              <div className="space-y-2 mt-3">
+                {consecutiveDaysConflicts.map((conflict, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 p-2 rounded-lg bg-muted"
+                  >
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      <strong>{conflict.scheduleName}</strong> - reservas em{" "}
+                      <strong>{DAY_NAMES_PT[conflict.dayOfWeek]}</strong>
+                      <span className="text-muted-foreground ml-1">
+                        (
+                        {conflict.daysDiff === 1
+                          ? "dia consecutivo"
+                          : `${conflict.daysDiff} dias de diferença`}
+                        )
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                Você pode ajustar o número mínimo de dias entre reservas nas{" "}
+                <strong>Configurações</strong>.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmConsecutiveDays}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+            >
+              Criar Mesmo Assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
