@@ -694,16 +694,15 @@ serve(async (req) => {
 
     addLog("loading_config", "Configuração carregada", {
       configId: config.id,
-      enabled: config.enabled,
-      runHour: config.run_hour,
-      runMinute: config.run_minute,
+      isActive: config.is_active,
+      triggerTime: config.trigger_time,
       reason: config.cancellation_reason,
       unitId: config.unit_id,
       condoId: config.condo_id,
     })
 
     // Verificar se está habilitado (apenas para execuções automáticas)
-    if (!config.enabled && !isAdHoc && !isDryRun) {
+    if (!config.is_active && !isAdHoc && !isDryRun) {
       throw new Error("Configuração está desabilitada")
     }
 
@@ -1122,6 +1121,7 @@ serve(async (req) => {
       .from("app_config")
       .select("value")
       .eq("key", "notification_email")
+      .eq("user_id", config.user_id)
       .maybeSingle()
 
     const notificationEmail = emailConfig?.value
@@ -1252,9 +1252,8 @@ serve(async (req) => {
         success: true,
         config: {
           id: config.id,
-          enabled: config.enabled,
-          runHour: config.run_hour,
-          runMinute: config.run_minute,
+          isActive: config.is_active,
+          triggerTime: config.trigger_time,
         },
         execution: {
           date: todayBRT,

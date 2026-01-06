@@ -23,13 +23,6 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "sonner"
 import {
@@ -43,9 +36,8 @@ export default function AutoCancel() {
   const upsertConfig = useUpsertAutoCancelConfig()
   const runAutoCancel = useRunAutoCancel()
 
-  const [enabled, setEnabled] = useState(false)
-  const [runHour, setRunHour] = useState(22)
-  const [runMinute, setRunMinute] = useState(0)
+  const [isActive, setIsActive] = useState(false)
+  const [triggerTime, setTriggerTime] = useState("22:00")
   const [cancellationReason, setCancellationReason] = useState(
     "Cancelamento automático da reserva"
   )
@@ -58,13 +50,18 @@ export default function AutoCancel() {
   // Carregar configurações quando disponíveis
   useEffect(() => {
     if (config) {
-      setEnabled(config.enabled)
+      setIsActive(config.isActive)
 
       // Converter UTC→BRT (subtrai 3 horas)
       // O banco armazena em UTC, mas o usuário vê/configura em BRT
-      const hourBRT = (config.runHour - 3 + 24) % 24
-      setRunHour(hourBRT)
-      setRunMinute(config.runMinute)
+      if (config.triggerTime) {
+        const [utcHour, minute] = config.triggerTime.split(":").map(Number)
+        const brtHour = (utcHour - 3 + 24) % 24
+        const brtTime = `${String(brtHour).padStart(2, "0")}:${String(
+          minute
+        ).padStart(2, "0")}`
+        setTriggerTime(brtTime)
+      }
 
       setCancellationReason(config.cancellationReason)
       setNotifyOnSuccessNoReservations(config.notifyOnSuccessNoReservations)
@@ -73,30 +70,39 @@ export default function AutoCancel() {
     }
   }, [config])
 
-  const handleToggleEnabled = async (newEnabled: boolean) => {
-    setEnabled(newEnabled)
+  const handleToggleEnabled = async (newIsActive: boolean) => {
+    setIsActive(newIsActive)
     try {
+      if (!triggerTime) {
+        toast.error("Configure o horário antes de ativar")
+        setIsActive(!newIsActive)
+        return
+      }
+
       // Converter BRT→UTC (adiciona 3 horas)
-      const runHourUTC = (runHour + 3) % 24
+      const [brtHour, minute] = triggerTime.split(":").map(Number)
+      const utcHour = (brtHour + 3) % 24
+      const utcTime = `${String(utcHour).padStart(2, "0")}:${String(
+        minute
+      ).padStart(2, "0")}:00`
 
       await upsertConfig.mutateAsync({
-        enabled: newEnabled,
-        runHour: runHourUTC,
-        runMinute,
+        isActive: newIsActive,
+        triggerTime: utcTime,
         cancellationReason,
         notifyOnSuccessNoReservations,
         notifyOnSuccessWithReservations,
         notifyOnFailure,
       })
 
-      if (newEnabled) {
+      if (newIsActive) {
         toast.success("Auto-Cancel ativado!")
       } else {
         toast.success("Auto-Cancel desativado")
       }
     } catch (error) {
       console.error(error)
-      setEnabled(!newEnabled)
+      setIsActive(!newIsActive)
       toast.error("Erro ao atualizar status")
     }
   }
@@ -107,14 +113,22 @@ export default function AutoCancel() {
       return
     }
 
+    if (!triggerTime) {
+      toast.error("Configure o horário de execução")
+      return
+    }
+
     try {
       // Converter BRT→UTC (adiciona 3 horas)
-      const runHourUTC = (runHour + 3) % 24
+      const [brtHour, minute] = triggerTime.split(":").map(Number)
+      const utcHour = (brtHour + 3) % 24
+      const utcTime = `${String(utcHour).padStart(2, "0")}:${String(
+        minute
+      ).padStart(2, "0")}:00`
 
       await upsertConfig.mutateAsync({
-        enabled,
-        runHour: runHourUTC,
-        runMinute,
+        isActive,
+        triggerTime: utcTime,
         cancellationReason: cancellationReason.trim(),
         notifyOnSuccessNoReservations,
         notifyOnSuccessWithReservations,
@@ -142,17 +156,18 @@ export default function AutoCancel() {
   }
 
   const formatScheduleTime = () => {
-    const h = runHour.toString().padStart(2, "0")
-    const m = runMinute.toString().padStart(2, "0")
-    return `${h}:${m}`
+    return triggerTime
   }
 
   const getNextRunTime = () => {
-    if (!enabled || !config?.lastRunAt) return "Aguardando primeira execução"
+    if (!isActive || !config?.lastExecutedAt || !triggerTime) {
+      return "Aguardando primeira execução"
+    }
 
     const now = new Date()
     const next = new Date(now)
-    next.setHours(runHour, runMinute, 0, 0)
+    const [hour, minute] = triggerTime.split(":").map(Number)
+    next.setHours(hour, minute, 0, 0)
 
     // Se já passou hoje, vai para amanhã
     if (next < now) {
@@ -218,13 +233,13 @@ export default function AutoCancel() {
                 Status do Auto-Cancel
               </div>
               <Switch
-                checked={enabled}
+                checked={isActive}
                 onCheckedChange={handleToggleEnabled}
                 disabled={upsertConfig.isPending}
               />
             </CardTitle>
             <CardDescription>
-              {enabled
+              {isActive
                 ? "O cancelamento automático está ativo"
                 : "O cancelamento automático está desativado"}
             </CardDescription>
@@ -234,10 +249,10 @@ export default function AutoCancel() {
               <div className="flex items-center gap-3">
                 <div
                   className={`p-2 rounded-full ${
-                    enabled ? "bg-success/10" : "bg-muted"
+                    isActive ? "bg-success/10" : "bg-muted"
                   }`}
                 >
-                  {enabled ? (
+                  {isActive ? (
                     <CheckCircle2 className="h-5 w-5 text-success" />
                   ) : (
                     <AlertTriangle className="h-5 w-5 text-muted-foreground" />
@@ -245,24 +260,24 @@ export default function AutoCancel() {
                 </div>
                 <div>
                   <p className="font-medium">
-                    {enabled ? "Sistema Ativo" : "Sistema Inativo"}
+                    {isActive ? "Sistema Ativo" : "Sistema Inativo"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {enabled
+                    {isActive
                       ? `Próxima execução: ${getNextRunTime()}`
                       : "Ative o sistema para começar"}
                   </p>
                 </div>
               </div>
-              <Badge variant={enabled ? "success" : "outline"}>
-                {enabled ? "Ativo" : "Inativo"}
+              <Badge variant={isActive ? "success" : "outline"}>
+                {isActive ? "Ativo" : "Inativo"}
               </Badge>
             </div>
 
-            {hasConfig && config.lastRunAt && (
+            {hasConfig && config.lastExecutedAt && (
               <div className="mt-4 text-sm text-muted-foreground">
                 Última execução:{" "}
-                {new Date(config.lastRunAt).toLocaleString("pt-BR")}
+                {new Date(config.lastExecutedAt).toLocaleString("pt-BR")}
               </div>
             )}
           </CardContent>
@@ -280,44 +295,15 @@ export default function AutoCancel() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="runHour">Hora</Label>
-                <Select
-                  value={runHour.toString()}
-                  onValueChange={(v) => setRunHour(parseInt(v))}
-                >
-                  <SelectTrigger id="runHour">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <SelectItem key={i} value={i.toString()}>
-                        {i.toString().padStart(2, "0")}:00
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="runMinute">Minuto</Label>
-                <Select
-                  value={runMinute.toString()}
-                  onValueChange={(v) => setRunMinute(parseInt(v))}
-                >
-                  <SelectTrigger id="runMinute">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[0, 15, 30, 45].map((m) => (
-                      <SelectItem key={m} value={m.toString()}>
-                        :{m.toString().padStart(2, "0")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="triggerTime">Horário (HH:MM)</Label>
+              <input
+                id="triggerTime"
+                type="time"
+                value={triggerTime}
+                onChange={(e) => setTriggerTime(e.target.value)}
+                className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 w-full"
+              />
             </div>
 
             <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -445,7 +431,7 @@ export default function AutoCancel() {
 
               <Button
                 onClick={handleRunNow}
-                disabled={runAutoCancel.isPending || !enabled}
+                disabled={runAutoCancel.isPending || !isActive}
                 className="w-full"
               >
                 <PlayCircle className="h-4 w-4 mr-2" />

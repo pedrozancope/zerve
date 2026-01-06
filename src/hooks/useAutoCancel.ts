@@ -8,17 +8,14 @@ import { toast } from "sonner"
 export interface AutoCancelConfig {
   id: string
   userId?: string
-  enabled: boolean
-  runHour: number
-  runMinute: number
+  isActive: boolean
+  triggerTime: string // HH:MM:SS format
   cancellationReason: string
-  unitId: string
-  condoId: string
   notifyOnSuccessNoReservations: boolean
   notifyOnSuccessWithReservations: boolean
   notifyOnFailure: boolean
   pgCronJobId?: number
-  lastRunAt?: string
+  lastExecutedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -26,28 +23,22 @@ export interface AutoCancelConfig {
 interface AutoCancelConfigRow {
   id: string
   user_id: string | null
-  enabled: boolean
-  run_hour: number
-  run_minute: number
+  is_active: boolean
+  trigger_time: string // HH:MM:SS format
   cancellation_reason: string
-  unit_id: string
-  condo_id: string
   notify_on_success_no_reservations: boolean
   notify_on_success_with_reservations: boolean
   notify_on_failure: boolean
   pg_cron_job_id: number | null
-  last_run_at: string | null
+  last_executed_at: string | null
   created_at: string
   updated_at: string
 }
 
 interface UpdateAutoCancelConfigParams {
-  enabled?: boolean
-  runHour?: number
-  runMinute?: number
+  isActive?: boolean
+  triggerTime?: string // HH:MM:SS format
   cancellationReason?: string
-  unitId?: string
-  condoId?: string
   notifyOnSuccessNoReservations?: boolean
   notifyOnSuccessWithReservations?: boolean
   notifyOnFailure?: boolean
@@ -65,17 +56,14 @@ function mapAutoCancelConfigFromDB(row: AutoCancelConfigRow): AutoCancelConfig {
   return {
     id: row.id,
     userId: row.user_id || undefined,
-    enabled: row.enabled,
-    runHour: row.run_hour,
-    runMinute: row.run_minute,
+    isActive: row.is_active,
+    triggerTime: row.trigger_time,
     cancellationReason: row.cancellation_reason,
-    unitId: row.unit_id,
-    condoId: row.condo_id,
     notifyOnSuccessNoReservations: row.notify_on_success_no_reservations,
     notifyOnSuccessWithReservations: row.notify_on_success_with_reservations,
     notifyOnFailure: row.notify_on_failure,
     pgCronJobId: row.pg_cron_job_id || undefined,
-    lastRunAt: row.last_run_at || undefined,
+    lastExecutedAt: row.last_executed_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -139,13 +127,11 @@ export function useUpsertAutoCancelConfig() {
       }
 
       // Adicionar apenas os campos que foram fornecidos
-      if (params.enabled !== undefined) payload.enabled = params.enabled
-      if (params.runHour !== undefined) payload.run_hour = params.runHour
-      if (params.runMinute !== undefined) payload.run_minute = params.runMinute
+      if (params.isActive !== undefined) payload.is_active = params.isActive
+      if (params.triggerTime !== undefined)
+        payload.trigger_time = params.triggerTime
       if (params.cancellationReason !== undefined)
         payload.cancellation_reason = params.cancellationReason
-      if (params.unitId !== undefined) payload.unit_id = params.unitId
-      if (params.condoId !== undefined) payload.condo_id = params.condoId
       if (params.notifyOnSuccessNoReservations !== undefined)
         payload.notify_on_success_no_reservations =
           params.notifyOnSuccessNoReservations
