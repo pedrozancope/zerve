@@ -285,6 +285,15 @@ export default function Logs() {
                               Pre-flight
                             </Badge>
                           )}
+                          {log.executionType === "auto_cancel" && (
+                            <Badge
+                              variant="secondary"
+                              className="gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
+                            >
+                              <XCircle className="h-3 w-3" />
+                              Auto-Cancel
+                            </Badge>
+                          )}
                         </div>
                         <CardDescription>{log.message}</CardDescription>
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1">

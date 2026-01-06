@@ -440,8 +440,18 @@ export function FlowStepsLog({
                   {isErrorStep && result?.error && (
                     <div className="mt-3 p-2 rounded bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
                       <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                        Erro ao reservar quadra
+                        {result.error}
                       </p>
+                      {logEntry?.details && Object.keys(logEntry.details).length > 0 && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-red-700 dark:text-red-300 cursor-pointer font-medium">
+                            Ver detalhes da resposta da API
+                          </summary>
+                          <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto p-2 bg-red-50 dark:bg-red-950/50 rounded">
+                            {JSON.stringify(logEntry.details, null, 2)}
+                          </pre>
+                        </details>
+                      )}
                       {result.details &&
                         Object.keys(result.details).length > 0 && (
                           <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">

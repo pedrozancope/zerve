@@ -56,8 +56,8 @@ export interface ExecutionLog {
   durationMs?: number
   isTest?: boolean
   testHour?: number
-  // Tipo de execução: reserva real, pre-flight ou teste
-  executionType: "reservation" | "preflight" | "test"
+  // Tipo de execução: reserva real, pre-flight, teste ou auto-cancel
+  executionType: "reservation" | "preflight" | "test" | "auto_cancel"
   // Campos para log estruturado
   errorStep?: string
   executionLog?: LogEntry[]

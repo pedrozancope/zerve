@@ -72,9 +72,13 @@ export default function Settings() {
   })
   const [consecutiveDaysWarning, setConsecutiveDaysWarning] = useState(true)
   const [minDaysBetween, setMinDaysBetween] = useState(1)
+  const [unitId, setUnitId] = useState("")
+  const [condoId, setCondoId] = useState("")
 
   const { data: tokenConfig, isLoading: loadingToken } =
     useConfigByKey("auth_token")
+  const { data: unitIdConfig } = useConfigByKey("unit_id")
+  const { data: condoIdConfig } = useConfigByKey("condo_id")
   const { data: notifySuccessConfig } = useConfigByKey("notify_on_success")
   const { data: notifyFailureConfig } = useConfigByKey("notify_on_failure")
   const { data: emailConfig } = useConfigByKey("notification_email")
@@ -97,6 +101,14 @@ export default function Settings() {
       }))
     }
   }, [notifySuccessConfig, notifyFailureConfig])
+
+  useEffect(() => {
+    if (unitIdConfig?.value) setUnitId(unitIdConfig.value)
+  }, [unitIdConfig])
+
+  useEffect(() => {
+    if (condoIdConfig?.value) setCondoId(condoIdConfig.value)
+  }, [condoIdConfig])
 
   useEffect(() => {
     if (emailConfig?.value) {
@@ -185,6 +197,23 @@ export default function Settings() {
     } catch (error) {
       console.error(error)
       toast.error("Erro ao atualizar configuração")
+    }
+  }
+
+  const handleSaveApiConfig = async () => {
+    if (!unitId || !condoId) {
+      toast.error("Preencha ID da Unidade e ID do Condomínio")
+      return
+    }
+
+    try {
+      await Promise.all([
+        upsertConfig.mutateAsync({ key: "unit_id", value: unitId }),
+        upsertConfig.mutateAsync({ key: "condo_id", value: condoId }),
+      ])
+      toast.success("Configurações da API salvas!")
+    } catch (error) {
+      toast.error("Erro ao salvar configurações da API")
     }
   }
 
@@ -346,7 +375,57 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
-
+        {/* Configurações da API */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Configurações da API
+            </CardTitle>
+            <CardDescription>
+              IDs da unidade e condomínio no sistema SuperLógica
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="unitId">ID da Unidade</Label>
+                <Input
+                  id="unitId"
+                  placeholder="Ex: 17686"
+                  value={unitId}
+                  onChange={(e) => setUnitId(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID da sua unidade no sistema
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="condoId">ID do Condomínio</Label>
+                <Input
+                  id="condoId"
+                  placeholder="Ex: 185"
+                  value={condoId}
+                  onChange={(e) => setCondoId(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID do condomínio no sistema
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleSaveApiConfig}
+              disabled={upsertConfig.isPending || !unitId || !condoId}
+            >
+              {upsertConfig.isPending ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
+              Salvar Configurações
+            </Button>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

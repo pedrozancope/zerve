@@ -20,4 +20,4 @@ SELECT cron.schedule(
 );
 
 -- 2. Comentário para documentação
-COMMENT ON EXTENSION cron IS 'Job check-scheduled-triggers verifica agendamentos com trigger_mode=trigger_date a cada minuto e os executa quando trigger_datetime é atingido';
+COMMENT ON EXTENSION pg_cron IS 'Job check-scheduled-triggers verifica agendamentos com trigger_mode=trigger_date a cada minuto e os executa quando trigger_datetime é atingido';

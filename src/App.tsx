@@ -9,6 +9,7 @@ import Schedules from "@/pages/Schedules"
 import NewSchedule from "@/pages/NewSchedule"
 import Logs from "@/pages/Logs"
 import Settings from "@/pages/Settings"
+import AutoCancel from "@/pages/AutoCancel"
 
 import TestReservationE2E from "@/pages/TestReservationE2E"
 
@@ -43,6 +44,7 @@ function App() {
             <Route path="/schedules/:id" element={<NewSchedule />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/auto-cancel" element={<AutoCancel />} />
             <Route path="/test-e2e" element={<TestReservationE2E />} />
           </Route>
         </Routes>

@@ -223,16 +223,34 @@ async function authSuperLogica(refreshToken: string): Promise<AuthResponse> {
   )
 
   if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(
-      `SuperLogica auth failed (${response.status}): ${errorText}`
+    let errorData: any
+    let errorText: string = ""
+
+    try {
+      errorText = await response.text()
+      errorData = JSON.parse(errorText)
+    } catch {
+      errorData = { raw: errorText }
+    }
+
+    const error: any = new Error(
+      `SuperLogica auth failed (${response.status}): ${JSON.stringify(
+        errorData
+      )}`
     )
+    error.apiStatus = response.status
+    error.apiResponse = errorData
+    error.apiMessage =
+      errorData?.error_description || errorData?.error || errorText
+    throw error
   }
 
   const data = await response.json()
 
   if (!data.access_token || !data.refresh_token) {
-    throw new Error("SuperLogica auth response missing tokens")
+    const error: any = new Error("SuperLogica auth response missing tokens")
+    error.apiResponse = data
+    throw error
   }
 
   return {
@@ -248,14 +266,23 @@ async function authSuperLogica(refreshToken: string): Promise<AuthResponse> {
 async function putReservation(
   accessToken: string,
   dateStr: string,
-  idArea: string
+  idArea: string,
+  unitId: string,
+  condoId: string
 ): Promise<ReservationApiResponse> {
   const personId = Deno.env.get("SUPERLOGICA_PERSON_ID")
   const baseUrl = "speedassessoria.superlogica.net"
 
   const url = `https://${baseUrl}/areadocondomino/atual/reservas/put?ID_AREA_ARE=${idArea}&DT_RESERVA_RES=${encodeURIComponent(
     dateStr
-  )}&ID_UNIDADE_UNI=17686&ID_CONDOMINIO_COND=185&FL_REGRAS_ARE=1&FL_RESERVA_JA_CONFIRMADA=0`
+  )}&ID_UNIDADE_UNI=${unitId}&ID_CONDOMINIO_COND=${condoId}&FL_REGRAS_ARE=1&FL_RESERVA_JA_CONFIRMADA=0`
+
+  log.info("Fazendo requisição para Speed API", {
+    url,
+    dateStr,
+    idArea,
+    hasAccessToken: !!accessToken,
+  })
 
   const response = await fetch(url, {
     method: "GET",
@@ -270,18 +297,40 @@ async function putReservation(
       "x-app-build": "1272",
       "x-device-type": "mobile",
       "User-Agent": "Gruvi/1272 v2.15.0 (ios; mobile;)",
-      idcondominio: "185",
+      idcondominio: condoId,
     },
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(
-      `Speed API request failed (${response.status}): ${errorText}`
-    )
+  let responseData: any
+  let responseText: string = ""
+
+  try {
+    responseText = await response.text()
+    responseData = JSON.parse(responseText)
+  } catch (e: any) {
+    responseData = { raw: responseText, parseError: e?.message || String(e) }
   }
 
-  return await response.json()
+  log.info("Resposta da Speed API recebida", {
+    status: response.status,
+    ok: response.ok,
+    responseData,
+  })
+
+  if (!response.ok) {
+    const error: any = new Error(
+      `Speed API request failed (${response.status}): ${JSON.stringify(
+        responseData
+      )}`
+    )
+    error.apiStatus = response.status
+    error.apiResponse = responseData
+    error.apiMessage =
+      responseData?.msg || responseData?.message || responseText
+    throw error
+  }
+
+  return responseData
 }
 
 /**
@@ -803,6 +852,35 @@ serve(async (req) => {
     addLog(currentStep, "Refresh token atualizado no Supabase")
 
     // ==========================================================================
+    // STEP 4.5: Get unit_id and condo_id from app_config
+    // ==========================================================================
+    currentStep = "getting_api_config"
+    addLog(currentStep, "Obtendo configurações da API...")
+
+    const { data: apiConfigs, error: apiConfigError } = await supabaseClient
+      .from("app_config")
+      .select("key, value")
+      .in("key", ["unit_id", "condo_id"])
+
+    if (apiConfigError) {
+      throw new Error(`Error fetching API config: ${apiConfigError.message}`)
+    }
+
+    const unitId = apiConfigs?.find((c: any) => c.key === "unit_id")?.value
+    const condoId = apiConfigs?.find((c: any) => c.key === "condo_id")?.value
+
+    if (!unitId || !condoId) {
+      throw new Error(
+        "unit_id ou condo_id não configurados. Configure em Settings."
+      )
+    }
+
+    addLog(currentStep, "Configurações da API obtidas", {
+      unitId,
+      condoId,
+    })
+
+    // ==========================================================================
     // STEP 5: Make reservation via Speed API (ou simular em Dry Run)
     // ==========================================================================
     currentStep = "making_reservation"
@@ -855,7 +933,9 @@ serve(async (req) => {
       reservationResponse = await putReservation(
         accessToken,
         reservationDate,
-        idArea
+        idArea,
+        unitId,
+        condoId
       )
     }
 
@@ -873,15 +953,37 @@ serve(async (req) => {
     })
 
     // Check if reservation failed
-    if (!reservationResult || Number(reservationResult.status) >= 400) {
-      const details = {
+    // A API pode retornar 206 (parcial) mas com erro no item individual
+    if (
+      !reservationResult ||
+      Number(reservationResult.status) >= 400 ||
+      (Number(status) === 206 && Number(reservationResult.status) >= 400)
+    ) {
+      const errorMsg =
+        reservationResult?.msg || msg || "Erro ao reservar quadra"
+
+      // Log detalhado do erro ANTES de lançar exceção
+      addLog(currentStep, `❌ ${errorMsg}`, {
+        httpStatus: status,
+        httpMessage: msg,
+        itemStatus: reservationResult?.status,
+        itemMessage: reservationResult?.msg,
+        fullResponse: {
+          status,
+          msg,
+          data: [reservationResult],
+        },
+      })
+
+      const error: any = new Error(errorMsg)
+      error.apiStatus = status
+      error.apiResponse = {
         status,
         msg,
-        reservationDate,
-        reservationResponse: reservationResult,
+        reservationResult,
       }
-      const error = new Error("Erro ao reservar quadra")
-      ;(error as any).details = details
+      error.apiMessage = errorMsg
+
       throw error
     }
 
@@ -1095,18 +1197,34 @@ serve(async (req) => {
     // ==========================================================================
     const duration = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorDetails = (error as any).details || {}
+    const errorStack = error instanceof Error ? error.stack : undefined
 
-    addLog("error", `Erro no step [${currentStep}]: ${errorMessage}`, {
-      ...errorDetails,
-      stack: error instanceof Error ? error.stack : undefined,
-    })
+    // Extrair detalhes da API se disponíveis
+    const apiStatus = (error as any)?.apiStatus
+    const apiResponse = (error as any)?.apiResponse
+    const apiMessage = (error as any)?.apiMessage
 
-    log.error(error instanceof Error ? error : String(error), {
+    log.error("Erro na execução da reserva", {
+      error: errorMessage,
+      stack: errorStack,
       step: currentStep,
       scheduleId,
       reservationHour,
-      ...errorDetails,
+      isTestMode,
+      isDryRun,
+      duration,
+      apiStatus,
+      apiResponse,
+      apiMessage,
+    })
+
+    addLog("error", `Erro no step [${currentStep}]: ${errorMessage}`, {
+      step: currentStep,
+      error: errorMessage,
+      stack: errorStack,
+      apiStatus,
+      apiResponse,
+      apiMessage,
     })
 
     // SEMPRE salvar log de erro no banco
@@ -1147,33 +1265,49 @@ serve(async (req) => {
         .in("key", ["notification_email", "notify_on_failure"])
 
       const notificationEmail = notifyConfigs?.find(
-        (c) => c.key === "notification_email"
+        (c: any) => c.key === "notification_email"
       )?.value
       const notifyOnFailure =
-        notifyConfigs?.find((c) => c.key === "notify_on_failure")?.value !==
-        "false"
+        notifyConfigs?.find((c: any) => c.key === "notify_on_failure")
+          ?.value !== "false"
 
       if (notificationEmail && notifyOnFailure) {
+        // Calcular data da reserva para incluir no e-mail
+        let reservationDate: string | undefined
+        let idArea: string | undefined
+        try {
+          if (reservationHour) {
+            reservationDate = calculateReservationDate(schedule, isTestMode)
+            idArea = getIdOfArea(reservationHour)
+          }
+        } catch {
+          reservationDate = undefined
+          idArea = undefined
+        }
+
         const subjectPrefix = isDryRun
           ? "🔍 [DRY RUN] "
           : isTestMode
           ? "(TESTE) "
           : ""
+
         const emailSent = await sendNotificationEmail(
           notificationEmail,
-          `❌ ${subjectPrefix}Erro na Reserva - ${reservationHour || "N/A"}:00`,
+          `❌ ${subjectPrefix}Erro na Reserva${
+            reservationHour ? ` (${reservationHour}:00)` : ""
+          }`,
           generateErrorEmailHtml(
             errorMessage,
             currentStep,
             reservationHour || 0,
             isTestMode,
             {
-              reservationDate: errorDetails.reservationDate,
-              idArea: errorDetails.idArea,
-              apiStatus: errorDetails.status,
-              apiMessage: errorDetails.msg,
-              apiResponse: errorDetails.reservationResponse || errorDetails,
-              stack: error instanceof Error ? error.stack : undefined,
+              reservationDate,
+              idArea,
+              apiStatus,
+              apiMessage,
+              apiResponse,
+              stack: errorStack,
               duration,
               scheduleId,
               scheduleName: schedule?.name,
@@ -1181,6 +1315,7 @@ serve(async (req) => {
             }
           )
         )
+
         addLog(
           "sending_notification",
           emailSent
@@ -1222,12 +1357,17 @@ serve(async (req) => {
           request_payload: {
             reservationHour,
             isTestMode,
+            isDryRun,
           },
           response_payload: {
             error: errorMessage,
-            details: errorDetails,
-            stack: error instanceof Error ? error.stack : undefined,
-            step: currentStep, // IMPORTANTE: step do erro aqui para o frontend usar
+            step: currentStep,
+            stack: errorStack,
+            apiDetails: {
+              status: apiStatus,
+              message: apiMessage,
+              response: apiResponse,
+            },
           },
           duration_ms: duration,
           is_test: isTestMode,
@@ -1249,13 +1389,17 @@ serve(async (req) => {
         success: false,
         error: errorMessage,
         step: currentStep,
-        details: errorDetails,
         scheduleId,
         executionLogId,
         duration,
         isTestMode,
         isDryRun,
         log: executionLog,
+        apiDetails: {
+          status: apiStatus,
+          message: apiMessage,
+          response: apiResponse,
+        },
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

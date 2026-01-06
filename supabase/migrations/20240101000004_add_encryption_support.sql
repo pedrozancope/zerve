@@ -98,8 +98,7 @@ SELECT
     ELSE value
   END as value,
   is_encrypted,
-  updated_at,
-  created_at
+  updated_at
 FROM app_config;
 
 -- Grant access to the view

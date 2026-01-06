@@ -1,10 +1,18 @@
 import { NavLink, useLocation } from "react-router-dom"
-import { Home, Calendar, FileText, Settings, PlayCircle } from "lucide-react"
+import {
+  Home,
+  Calendar,
+  FileText,
+  Settings,
+  PlayCircle,
+  XCircle,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/schedules", label: "Agendamentos", icon: Calendar },
+  { path: "/auto-cancel", label: "Cancel", icon: XCircle },
   { path: "/logs", label: "Logs", icon: FileText },
   { path: "/test-e2e", label: "Teste", icon: PlayCircle },
   { path: "/settings", label: "Config", icon: Settings },

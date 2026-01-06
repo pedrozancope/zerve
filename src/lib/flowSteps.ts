@@ -10,11 +10,14 @@ import {
   Search,
   Bell,
   Plane,
+  XCircle,
+  Clock,
+  Filter,
   type LucideIcon,
 } from "lucide-react"
 
 // Tipos de execução suportados
-export type ExecutionType = "reservation" | "preflight" | "test"
+export type ExecutionType = "reservation" | "preflight" | "test" | "auto_cancel"
 
 // Definição das etapas do fluxo de execução
 export interface FlowStep {
@@ -40,6 +43,91 @@ export const ALL_FLOW_STEPS: FlowStep[] = [
     icon: Plane,
     description: "Iniciando Pre-flight",
     appliesTo: ["preflight"],
+  },
+  // Step inicial para auto-cancel
+  {
+    id: "parsing_request",
+    name: "Processar Requisição",
+    icon: FileCheck,
+    description: "Processando requisição do Auto-Cancel",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "loading_config",
+    name: "Carregar Configuração",
+    icon: Database,
+    description: "Carregando configuração do Auto-Cancel",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "getting_auth_token",
+    name: "Obter Token de Auth",
+    icon: Key,
+    description: "Obtendo token de autenticação",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "authenticating",
+    name: "Autenticar",
+    icon: Shield,
+    description: "Autenticando com a API",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "calculating_date",
+    name: "Calcular Data",
+    icon: Clock,
+    description: "Calculando data de hoje (BRT)",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "listing_reservations",
+    name: "Listar Reservas",
+    icon: Search,
+    description: "Buscando reservas do dia",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "filtering_reservations",
+    name: "Filtrar Reservas",
+    icon: Filter,
+    description: "Filtrando reservas de hoje",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "filtering_today_reservations",
+    name: "Confirmar Reservas de Hoje",
+    icon: CheckCircle2,
+    description: "Confirmando reservas para cancelamento",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "cancelling_reservations",
+    name: "Cancelar Reservas",
+    icon: XCircle,
+    description: "Processando cancelamentos",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "cancellation_summary",
+    name: "Resumo do Cancelamento",
+    icon: CheckCircle2,
+    description: "Resumo dos cancelamentos processados",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "updating_config",
+    name: "Atualizar Configuração",
+    icon: RefreshCw,
+    description: "Atualizando timestamp da última execução",
+    appliesTo: ["auto_cancel"],
+  },
+  {
+    id: "saving_execution_log",
+    name: "Salvar Log",
+    icon: Database,
+    description: "Salvando log de execução",
+    appliesTo: ["auto_cancel"],
   },
   // Step inicial para reservation/test
   {

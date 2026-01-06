@@ -4,8 +4,14 @@
 -- Atualiza o cron job de preflight para rodar a cada 5 minutos
 -- ao invés de a cada hora no minuto 30
 
--- 1. Remover o cron job existente
-SELECT cron.unschedule('preflight-check');
+-- 1. Remover o cron job existente (se existir)
+DO $$
+BEGIN
+  PERFORM cron.unschedule('preflight-check');
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Job preflight-check não encontrado, continuando...';
+END $$;
 
 -- 2. Criar novo cron job que roda a cada 5 minutos
 DO $$
