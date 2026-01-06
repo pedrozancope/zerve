@@ -720,6 +720,7 @@ zerve/
 **Status:** Sistema removeu triggers de gerenciamento de pg_cron em migration 20260106200000.
 
 Triggers remanescentes são apenas utilitários:
+
 - `on_schedule_datetime_change` — reseta preflight ao alterar trigger_datetime
 - `on_schedule_preflight_config_change` — reseta preflight ao alterar config
 - `update_schedules_updated_at` — padrão para atualizar `updated_at`
@@ -1551,10 +1552,12 @@ Envia notificações após execuções. `to` obtido de `app_config.notification_
 **Status:** Problema resolvido em 06/01/2026
 
 **O que estava documentado (ERRADO):**
+
 - Request: MM/DD/YYYY
 - Response: DD/MM/YYYY (inconsistência da API)
 
 **Realidade confirmada:**
+
 - ✅ Request: MM/DD/YYYY
 - ✅ Response: MM/DD/YYYY (mesmo formato)
 - ✅ Campo `dt_reserva_res` retorna "01/14/2026 00:00:00" (MM/DD/YYYY)
@@ -1590,12 +1593,12 @@ Envia notificações após execuções. `to` obtido de `app_config.notification_
 
 Exatamente 4 jobs globais ativos:
 
-| jobid | jobname                    | schedule   | command                           |
-| ----- | -------------------------- | ---------- | --------------------------------- |
-| 5     | automatic-cleanup          | 0 3 \* \* 0 | SELECT run_automatic_cleanup()    |
-| 8     | check-and-execute-schedules | \* \* \* \* \* | SELECT check_and_execute_schedules() |
-| 11    | preflight-check            | \* \* \* \* \* | SELECT call_preflight_edge_function() |
-| 15    | auto-cancel-check          | \* \* \* \* \* | SELECT run_auto_cancel_check()    |
+| jobid | jobname                     | schedule       | command                               |
+| ----- | --------------------------- | -------------- | ------------------------------------- |
+| 5     | automatic-cleanup           | 0 3 \* \* 0    | SELECT run_automatic_cleanup()        |
+| 8     | check-and-execute-schedules | \* \* \* \* \* | SELECT check_and_execute_schedules()  |
+| 11    | preflight-check             | \* \* \* \* \* | SELECT call_preflight_edge_function() |
+| 15    | auto-cancel-check           | \* \* \* \* \* | SELECT run_auto_cancel_check()        |
 
 **Como Funciona:**
 
