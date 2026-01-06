@@ -18,6 +18,15 @@ interface AuthResponse {
   refresh_token: string
 }
 
+interface FlowStep {
+  step: string
+  message: string
+  details?: any
+  request?: Record<string, any>
+  response?: Record<string, any>
+  timestamp: string
+}
+
 interface PreflightResult {
   scheduleId: string
   scheduleName: string
@@ -292,12 +301,7 @@ async function executePreflightForSchedule(
   let currentStep = "initialization"
 
   // Log detalhado para retornar ao cliente
-  const executionLog: {
-    step: string
-    message: string
-    details?: any
-    timestamp: string
-  }[] = []
+  const executionLog: FlowStep[] = []
 
   function addLog(step: string, message: string, details?: any) {
     executionLog.push({
@@ -352,8 +356,32 @@ async function executePreflightForSchedule(
     currentStep = "authenticating_superlogica"
     addLog(currentStep, "Autenticando com a API da SuperLogica...")
 
+    const clientId = Deno.env.get("SUPERLOGICA_CLIENT_ID")
+    const sessionId = Deno.env.get("SUPERLOGICA_SESSION_ID")
+    const personId = Deno.env.get("SUPERLOGICA_PERSON_ID")
+
+    // Save request information
+    executionLog[executionLog.length - 1].request = {
+      method: "POST",
+      url: "https://api.superlogica.com/spaces/v1/auth/token",
+      body: {
+        grant_type: "refresh_token",
+        client_id: clientId ? "HIDDEN" : undefined,
+        refresh_token: "HIDDEN",
+        session_id: sessionId ? "HIDDEN" : undefined,
+      },
+    }
+
     const { access_token: accessToken, refresh_token: newRefreshToken } =
       await authSuperLogica(currentRefreshToken)
+
+    // Save response information
+    executionLog[executionLog.length - 1].response = {
+      access_token: accessToken.substring(0, 10) + "...",
+      refresh_token: newRefreshToken.substring(0, 10) + "...",
+      access_token_length: accessToken.length,
+      refresh_token_length: newRefreshToken.length,
+    }
 
     addLog(currentStep, "Autenticação bem-sucedida! Token validado.", {
       accessTokenLength: accessToken.length,

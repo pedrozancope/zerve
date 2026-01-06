@@ -54,6 +54,15 @@ interface CancelReservationResponse {
   }>
 }
 
+interface FlowStep {
+  step: string
+  message: string
+  details?: Record<string, unknown>
+  request?: Record<string, any>
+  response?: Record<string, any>
+  timestamp: string
+}
+
 interface LogEntry {
   step: string
   message: string
@@ -565,7 +574,7 @@ serve(async (req) => {
 
   const startTime = Date.now()
   let currentStep = "initialization"
-  const executionLog: LogEntry[] = []
+  const executionLog: FlowStep[] = []
   let config: any = null
   let isDryRun = false
   let isAdHoc = false
@@ -727,7 +736,33 @@ serve(async (req) => {
     // ==========================================================================
     currentStep = "authenticating"
 
+    const clientId = Deno.env.get("SUPERLOGICA_CLIENT_ID")
+    const sessionId = Deno.env.get("SUPERLOGICA_SESSION_ID")
+    const personId = Deno.env.get("SUPERLOGICA_PERSON_ID")
+
+    addLog("authenticating", "Iniciando autenticação com SuperLogica...")
+
+    // Save request information
+    executionLog[executionLog.length - 1].request = {
+      method: "POST",
+      url: "https://api.superlogica.com/spaces/v1/auth/token",
+      body: {
+        grant_type: "refresh_token",
+        client_id: clientId ? "HIDDEN" : undefined,
+        refresh_token: "HIDDEN",
+        session_id: sessionId ? "HIDDEN" : undefined,
+      },
+    }
+
     const authResult = await authSuperLogica(tokenConfig.value)
+
+    // Save response information
+    executionLog[executionLog.length - 1].response = {
+      access_token: authResult.access_token.substring(0, 10) + "...",
+      refresh_token: authResult.refresh_token.substring(0, 10) + "...",
+      access_token_length: authResult.access_token.length,
+      refresh_token_length: authResult.refresh_token.length,
+    }
 
     addLog("authenticating", "Autenticação realizada com sucesso", {
       hasAccessToken: !!authResult.access_token,
@@ -762,12 +797,38 @@ serve(async (req) => {
     // ==========================================================================
     currentStep = "listing_reservations"
 
+    const baseUrl = "speedassessoria.superlogica.net"
+    const listUrl = `https://${baseUrl}/areadocondomino/atual/reservas/obterreservasdaunidade`
+
+    addLog("listing_reservations", "Listando reservas da API...")
+
+    // Save request information
+    executionLog[executionLog.length - 1].request = {
+      method: "POST",
+      url: listUrl,
+      body: {
+        idUnidades: [config.unit_id],
+        dtInicio: todayBRT,
+        dtFim: todayBRT,
+        idCondominio: config.condo_id,
+        filtrarFila: 1,
+      },
+    }
+
     const listResult = await listReservations(
       authResult.access_token,
       todayBRT,
       config.unit_id,
       config.condo_id
     )
+
+    // Save response information
+    executionLog[executionLog.length - 1].response = {
+      status: listResult.status,
+      msg: listResult.msg,
+      multipleresponse: listResult.multipleresponse,
+      data: listResult.data,
+    }
 
     addLog("listing_reservations", "Reservas listadas da API", {
       status: listResult.status,
@@ -909,12 +970,43 @@ serve(async (req) => {
         } else {
           // Cancelamento real
           try {
+            const cancelUrl = `https://speedassessoria.superlogica.net/areadocondomino/atual/reservas/cancelar`
+
+            addLog(
+              "cancelling_reservations",
+              `Cancelando reserva ${reservationId}...`,
+              {
+                reservationId,
+                areaId,
+                areaName,
+              }
+            )
+
+            // Save request information
+            executionLog[executionLog.length - 1].request = {
+              method: "POST",
+              url: cancelUrl,
+              body: {
+                ID_RESERVA_RES: reservationId,
+                ST_MOTIVOCANCELAMENTO_RES: config.cancellation_reason,
+                ID_AREA_ARE: areaId,
+              },
+            }
+
             const cancelResult = await cancelReservation(
               authResult.access_token,
               reservationId,
               areaId,
               config.cancellation_reason
             )
+
+            // Save response information
+            executionLog[executionLog.length - 1].response = {
+              status: cancelResult.status,
+              msg: cancelResult.msg,
+              multipleresponse: cancelResult.multipleresponse,
+              data: cancelResult.data,
+            }
 
             const itemResult = cancelResult.data?.[0]
             const itemStatus = itemResult?.status

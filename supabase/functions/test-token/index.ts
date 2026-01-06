@@ -24,6 +24,16 @@ interface ListReservationsResponse {
   data: any[]
 }
 
+interface FlowStep {
+  step: string
+  status: "running" | "completed" | "error"
+  message: string
+  details?: Record<string, any>
+  request?: Record<string, any>
+  response?: Record<string, any>
+  timestamp?: string
+}
+
 // =============================================================================
 // Logger
 // =============================================================================
@@ -248,10 +258,10 @@ serve(async (req) => {
     // ==========================================================================
     log.info("Getting refresh token from database...")
 
-    const flowSteps = [
+    const flowSteps: FlowStep[] = [
       {
         step: "get_token",
-        status: "running" as const,
+        status: "running",
         message: "Buscando refresh token...",
       },
     ]
@@ -308,7 +318,7 @@ serve(async (req) => {
 
     flowSteps.push({
       step: "authenticate",
-      status: "running" as const,
+      status: "running",
       message: "Autenticando com SuperLógica...",
     })
 
@@ -342,13 +352,23 @@ serve(async (req) => {
 
     log.info("Authentication successful")
 
-    // Complete step 2 with API response details
+    // Complete step 2 with API request and response details
     flowSteps[1].status = "completed"
     flowSteps[1].message = "Autenticação bem-sucedida"
-    flowSteps[1].details = {
+    flowSteps[1].request = {
+      method: "POST",
+      url: "https://api.superlogica.com/spaces/v1/auth/token",
+      body: {
+        grant_type: "refresh_token",
+        client_id: "HIDDEN",
+        refresh_token: "HIDDEN",
+        session_id: "HIDDEN",
+      },
+    }
+    flowSteps[1].response = {
+      tokenLength: accessToken?.length || 0,
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!newRefreshToken,
-      tokenLength: accessToken?.length || 0,
     }
 
     // ==========================================================================
@@ -358,7 +378,7 @@ serve(async (req) => {
 
     flowSteps.push({
       step: "list_reservations",
-      status: "running" as const,
+      status: "running",
       message: "Listando reservas...",
     })
 
@@ -402,9 +422,24 @@ serve(async (req) => {
 
     log.info("Total de reservas contadas", { totalReservations })
 
-    // Complete step 3
+    // Complete step 3 with request and response
     flowSteps[2].status = "completed"
     flowSteps[2].message = `${totalReservations} reserva(s) encontrada(s)`
+    flowSteps[2].request = {
+      method: "POST",
+      url: "https://api.superlogica.com/spaces/v1/speed/reservations/list",
+      body: {
+        date: dateStr,
+        unit_id: unitId,
+        condo_id: condoId,
+      },
+    }
+    flowSteps[2].response = {
+      status: listResult.status,
+      message: listResult.msg,
+      totalReservations,
+      reservations: listResult.data?.[0]?.data || [],
+    }
 
     // ==========================================================================
     // STEP 4: Update refresh_token in Supabase
@@ -413,7 +448,7 @@ serve(async (req) => {
 
     flowSteps.push({
       step: "update_token",
-      status: "running" as const,
+      status: "running",
       message: "Atualizando refresh token...",
     })
 

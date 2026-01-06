@@ -2,6 +2,7 @@ import { CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ExecutionTypeBadge } from "@/components/logs"
 import type { ExecutionLog } from "@/types"
 
 interface RecentActivityProps {
@@ -104,9 +105,22 @@ export function RecentActivity({ logs, isLoading }: RecentActivityProps) {
               <div className="flex items-center gap-3">
                 {getStatusIcon(log.status)}
                 <div>
-                  <p className="text-sm font-medium">
-                    {log.schedule?.name || "Execução manual"}
-                  </p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-medium">
+                      {log.schedule?.name || log.executionType === "test_token"
+                        ? "Teste de Token"
+                        : log.executionType === "auto_cancel"
+                        ? "Auto-Cancel"
+                        : "Execução manual"}
+                    </p>
+                    {(log.executionType !== "reservation" || log.isTest) && (
+                      <ExecutionTypeBadge
+                        executionType={log.executionType}
+                        isTest={log.isTest}
+                        className="text-[10px] h-4 px-1.5"
+                      />
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {formatDateTime(log.executedAt)}
                   </p>

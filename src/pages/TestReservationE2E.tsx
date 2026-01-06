@@ -17,8 +17,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { PlayCircle, CheckCircle2, Loader2 } from "lucide-react"
-import { FlowStepsLog } from "@/components/logs"
+import { PlayCircle, Loader2 } from "lucide-react"
+import { TestResultDisplay } from "@/components/logs"
 import type { ExecutionResult } from "@/lib/flowSteps"
 
 // Horários disponíveis (6h às 21h)
@@ -167,55 +167,15 @@ export default function TestReservationE2E() {
 
         {/* Fluxo visual das etapas - usando componente reutilizável */}
         <div className="lg:col-span-2">
-          <FlowStepsLog
+          <TestResultDisplay
             result={result}
-            isTest={true}
             isLoading={loading}
+            executionType="test"
             title="Fluxo de Execução"
-            subtitle={
-              loading
-                ? "Executando teste..."
-                : !result
-                ? "Execute o teste para ver o progresso"
-                : undefined
-            }
+            showDataSection={true}
           />
         </div>
       </div>
-
-      {/* Dados da reserva (se sucesso) */}
-      {result?.success && result?.data && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Dados da Reserva
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="p-4 rounded-lg bg-muted text-sm overflow-x-auto">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Log completo (debug) */}
-      {result?.log && result.log.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Log Completo (Debug)</CardTitle>
-            <CardDescription>
-              Todos os eventos registrados durante a execução
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="p-4 rounded-lg bg-muted text-xs overflow-x-auto max-h-96">
-              {JSON.stringify(result.log, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

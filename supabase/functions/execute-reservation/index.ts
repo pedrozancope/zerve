@@ -38,6 +38,15 @@ interface ReservationApiResponse {
   }>
 }
 
+interface FlowStep {
+  step: string
+  message: string
+  details?: any
+  request?: Record<string, any>
+  response?: Record<string, any>
+  timestamp: string
+}
+
 interface NotificationConfig {
   email?: string
   notifyOnSuccess: boolean
@@ -666,12 +675,7 @@ serve(async (req) => {
   let schedule: any = null
 
   // Log detalhado para retornar ao cliente
-  const executionLog: {
-    step: string
-    message: string
-    details?: any
-    timestamp: string
-  }[] = []
+  const executionLog: FlowStep[] = []
 
   function addLog(step: string, message: string, details?: any) {
     executionLog.push({
@@ -820,8 +824,32 @@ serve(async (req) => {
     currentStep = "authenticating_superlogica"
     addLog(currentStep, "Autenticando com a API da SuperLogica...")
 
+    const clientId = Deno.env.get("SUPERLOGICA_CLIENT_ID")
+    const sessionId = Deno.env.get("SUPERLOGICA_SESSION_ID")
+    const personId = Deno.env.get("SUPERLOGICA_PERSON_ID")
+
+    // Save request information
+    executionLog[executionLog.length - 1].request = {
+      method: "POST",
+      url: "https://api.superlogica.com/spaces/v1/auth/token",
+      body: {
+        grant_type: "refresh_token",
+        client_id: clientId ? "HIDDEN" : undefined,
+        refresh_token: "HIDDEN",
+        session_id: sessionId ? "HIDDEN" : undefined,
+      },
+    }
+
     const { access_token: accessToken, refresh_token: newRefreshToken } =
       await authSuperLogica(currentRefreshToken)
+
+    // Save response information
+    executionLog[executionLog.length - 1].response = {
+      access_token: accessToken.substring(0, 10) + "...",
+      refresh_token: newRefreshToken.substring(0, 10) + "...",
+      access_token_length: accessToken.length,
+      refresh_token_length: newRefreshToken.length,
+    }
 
     addLog(currentStep, "Access token e refresh token obtidos", {
       accessTokenLength: accessToken.length,
@@ -930,6 +958,25 @@ serve(async (req) => {
         }
       )
     } else {
+      const baseUrl = "speedassessoria.superlogica.net"
+      const reservationUrl = `https://${baseUrl}/areadocondomino/atual/reservas/put?ID_AREA_ARE=${idArea}&DT_RESERVA_RES=${encodeURIComponent(
+        reservationDate
+      )}&ID_UNIDADE_UNI=${unitId}&ID_CONDOMINIO_COND=${condoId}&FL_REGRAS_ARE=1&FL_RESERVA_JA_CONFIRMADA=0`
+
+      // Save request information
+      executionLog[executionLog.length - 1].request = {
+        method: "GET",
+        url: reservationUrl,
+        params: {
+          ID_AREA_ARE: idArea,
+          DT_RESERVA_RES: reservationDate,
+          ID_UNIDADE_UNI: unitId,
+          ID_CONDOMINIO_COND: condoId,
+          FL_REGRAS_ARE: "1",
+          FL_RESERVA_JA_CONFIRMADA: "0",
+        },
+      }
+
       reservationResponse = await putReservation(
         accessToken,
         reservationDate,
@@ -937,6 +984,13 @@ serve(async (req) => {
         unitId,
         condoId
       )
+
+      // Save response information
+      executionLog[executionLog.length - 1].response = {
+        status: reservationResponse.status,
+        msg: reservationResponse.msg,
+        data: reservationResponse.data,
+      }
     }
 
     // ==========================================================================

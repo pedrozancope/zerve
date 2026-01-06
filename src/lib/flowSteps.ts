@@ -342,6 +342,8 @@ export interface LogEntry {
   step: string
   message: string
   details?: Record<string, unknown>
+  request?: Record<string, unknown> // Request payload para APIs externas
+  response?: Record<string, unknown> // Response body de APIs externas
   timestamp: string
 }
 
@@ -354,4 +356,5 @@ export interface ExecutionResult {
   duration?: number
   data?: Record<string, unknown>
   log?: LogEntry[]
+  responsePayload?: Record<string, unknown>
 }

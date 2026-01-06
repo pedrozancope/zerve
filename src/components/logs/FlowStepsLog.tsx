@@ -15,6 +15,7 @@ import {
   getStepDescription,
   STEP_NAMES,
 } from "@/lib/flowSteps"
+import { ApiRequestResponse } from "./ApiRequestResponse"
 
 interface FlowStepsLogProps {
   result: ExecutionResult | null
@@ -48,6 +49,38 @@ export function FlowStepsLog({
   // Determina o tipo de execução efetivo
   const effectiveType: ExecutionType =
     executionType || (isTest ? "test" : "reservation")
+
+  // Função helper para verificar se um step envolve chamada de API externa
+  const isApiStep = (stepId: string): boolean => {
+    const apiSteps = [
+      "authenticate",
+      "authenticating",
+      "authenticating_superlogica",
+      "making_reservation",
+      "list_reservations",
+      "listing_reservations",
+      "cancelling_reservations",
+      "getting_refresh_token",
+      "updating_refresh_token",
+    ]
+    return apiSteps.includes(stepId)
+  }
+
+  // Função helper para obter título legível da API
+  const getApiTitle = (stepId: string): string => {
+    const titles: Record<string, string> = {
+      authenticate: "Autenticação SuperLógica",
+      authenticating: "Autenticação SuperLógica",
+      authenticating_superlogica: "Autenticação SuperLógica",
+      making_reservation: "Criação de Reserva",
+      list_reservations: "Listagem de Reservas",
+      listing_reservations: "Listagem de Reservas",
+      cancelling_reservations: "Cancelamento de Reservas",
+      getting_refresh_token: "Obtenção de Token",
+      updating_refresh_token: "Atualização de Token",
+    }
+    return titles[stepId] || "API Externa"
+  }
 
   // Para test_token, usar apenas os steps que foram realmente executados
   // Para outros tipos, usar todos os steps disponíveis
@@ -482,10 +515,11 @@ export function FlowStepsLog({
                   {logEntry?.details &&
                     !isErrorStep &&
                     !isFinalStep &&
+                    !isApiStep(step.id) &&
                     Object.keys(logEntry.details).length > 0 && (
                       <details className="mt-2">
                         <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                          Ver detalhes
+                          Ver detalhes técnicos
                         </summary>
                         <pre className="mt-1 p-2 rounded bg-background/50 text-xs overflow-x-auto max-h-32">
                           {JSON.stringify(logEntry.details, null, 2)}
@@ -493,41 +527,34 @@ export function FlowStepsLog({
                       </details>
                     )}
 
-                  {/* Response da API para authenticate em test_token */}
-                  {effectiveType === "test_token" &&
-                    step.id === "authenticate" &&
+                  {/* API Request/Response - UNIFICADO para todas as chamadas de API */}
+                  {isApiStep(step.id) &&
                     logEntry &&
-                    logEntry.details && (
-                      <details className="mt-3">
-                        <summary className="text-xs font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-900 dark:hover:text-blue-100">
-                          📊 Ver resposta da API
-                        </summary>
-                        <div className="mt-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                          <pre className="text-xs overflow-x-auto">
-                            {JSON.stringify(logEntry.details, null, 2)}
-                          </pre>
-                        </div>
-                      </details>
-                    )}
-
-                  {/* Response da API para list_reservations em test_token */}
-                  {effectiveType === "test_token" &&
-                    step.id === "list_reservations" &&
-                    result?.responsePayload?.apiResponse && (
-                      <details className="mt-3">
-                        <summary className="text-xs font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-900 dark:hover:text-blue-100">
-                          📊 Ver resposta da API
-                        </summary>
-                        <div className="mt-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                          <pre className="text-xs overflow-x-auto">
-                            {JSON.stringify(
-                              result.responsePayload.apiResponse,
-                              null,
-                              2
-                            )}
-                          </pre>
-                        </div>
-                      </details>
+                    (logEntry.request ||
+                      logEntry.response ||
+                      logEntry.details) && (
+                      <ApiRequestResponse
+                        request={
+                          logEntry.request ||
+                          (logEntry.details as any)?.request ||
+                          (logEntry.details as any)?.requestData ||
+                          (logEntry.details as any)?.payload
+                        }
+                        response={
+                          logEntry.response ||
+                          (logEntry.details as any)?.response ||
+                          (logEntry.details as any)?.responseData ||
+                          (logEntry.details as any)?.data ||
+                          // Se não encontrar campos específicos, usa details como response
+                          (Object.keys(logEntry.details || {}).length > 0 &&
+                          !logEntry.request &&
+                          !logEntry.response
+                            ? logEntry.details
+                            : undefined)
+                        }
+                        title={getApiTitle(step.id)}
+                        defaultExpanded={false}
+                      />
                     )}
                 </div>
 

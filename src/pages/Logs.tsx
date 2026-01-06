@@ -1,27 +1,24 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
-  CheckCircle2,
-  XCircle,
   Clock,
   Filter,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  FlaskConical,
   Workflow,
   List,
-  Plane,
+  TrendingUp,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
@@ -32,9 +29,8 @@ import {
 } from "@/components/ui/select"
 import { useLogs } from "@/hooks/useLogs"
 import { useSchedules } from "@/hooks/useSchedules"
-import { FlowStepsLog } from "@/components/logs"
+import { LogCard } from "@/components/logs"
 import type { ExecutionLog } from "@/types"
-import type { ExecutionResult } from "@/lib/flowSteps"
 
 export default function Logs() {
   const [searchParams] = useSearchParams()
@@ -46,7 +42,6 @@ export default function Logs() {
   const [scheduleFilter, setScheduleFilter] = useState<string>(
     scheduleIdFromUrl || "all"
   )
-  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<"flow" | "simple">("flow")
 
   // Atualizar filtro quando mudar URL
@@ -77,60 +72,19 @@ export default function Logs() {
     return () => clearInterval(interval)
   }, [refetch])
 
-  const toggleExpanded = (id: string) => {
-    setExpandedLogs((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(id)) {
-        newSet.delete(id)
-      } else {
-        newSet.add(id)
-      }
-      return newSet
-    })
-  }
+  // Estatísticas dos logs filtrados
+  const stats = useMemo(() => {
+    if (!logs)
+      return { total: 0, success: 0, error: 0, pending: 0, successRate: 0 }
 
-  const getStatusIcon = (status: ExecutionLog["status"]) => {
-    switch (status) {
-      case "success":
-        return <CheckCircle2 className="h-5 w-5 text-success" />
-      case "error":
-        return <XCircle className="h-5 w-5 text-destructive" />
-      case "pending":
-        return <Clock className="h-5 w-5 text-warning" />
-    }
-  }
+    const total = logs.length
+    const success = logs.filter((l) => l.status === "success").length
+    const error = logs.filter((l) => l.status === "error").length
+    const pending = logs.filter((l) => l.status === "pending").length
+    const successRate = total > 0 ? Math.round((success / total) * 100) : 0
 
-  const getStatusBadge = (status: ExecutionLog["status"]) => {
-    const variants = {
-      success: "success" as const,
-      error: "destructive" as const,
-      pending: "secondary" as const,
-    }
-    const labels = {
-      success: "Sucesso",
-      error: "Erro",
-      pending: "Pendente",
-    }
-    return <Badge variant={variants[status]}>{labels[status]}</Badge>
-  }
-
-  // Converter ExecutionLog para ExecutionResult para o FlowStepsLog
-  const convertToExecutionResult = (log: ExecutionLog): ExecutionResult => {
-    const responsePayload = log.responsePayload as any
-
-    return {
-      success: log.status === "success",
-      error:
-        log.status === "error"
-          ? responsePayload?.error || log.message
-          : undefined,
-      step: log.errorStep,
-      duration: log.durationMs,
-      data: log.responsePayload,
-      details: responsePayload?.details,
-      log: log.executionLog,
-    }
-  }
+    return { total, success, error, pending, successRate }
+  }, [logs])
 
   if (isLoading) {
     return (
@@ -152,304 +106,213 @@ export default function Logs() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Logs</h1>
+      {/* Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">Logs de Execução</h1>
         <p className="text-muted-foreground">
-          Histórico de execuções das reservas
+          Histórico detalhado de todas as execuções com request/response de APIs
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="success">Sucesso</SelectItem>
-              <SelectItem value="error">Erro</SelectItem>
-              <SelectItem value="pending">Pendente</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
-            <SelectTrigger className="w-[240px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os agendamentos</SelectItem>
-              {schedules?.map((schedule) => (
-                <SelectItem key={schedule.id} value={schedule.id}>
-                  {schedule.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Stats Cards */}
+      {logs && logs.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                execuções registradas
+              </p>
+            </CardContent>
+          </Card>
 
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Toggle de visualização */}
-          <div className="flex items-center border rounded-lg overflow-hidden">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sucesso</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {stats.success}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.successRate}% de taxa de sucesso
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Erros</CardTitle>
+              <XCircle className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {stats.error}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                execuções com falha
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+              <AlertCircle className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">
+                {stats.pending}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                aguardando conclusão
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Filters and Actions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filtros
+              </CardTitle>
+              <CardDescription>
+                Filtre e visualize os logs por status, agendamento e formato
+              </CardDescription>
+            </div>
             <Button
-              variant={viewMode === "flow" ? "default" : "ghost"}
+              variant="outline"
               size="sm"
-              className="rounded-none gap-1.5"
-              onClick={() => setViewMode("flow")}
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="gap-2 self-start sm:self-auto"
             >
-              <Workflow className="h-4 w-4" />
-              Fluxo
-            </Button>
-            <Button
-              variant={viewMode === "simple" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-none gap-1.5"
-              onClick={() => setViewMode("simple")}
-            >
-              <List className="h-4 w-4" />
-              Simples
+              <RefreshCw
+                className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+              />
+              Atualizar
             </Button>
           </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                Status:
+              </span>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="success">✅ Sucesso</SelectItem>
+                  <SelectItem value="error">❌ Erro</SelectItem>
+                  <SelectItem value="pending">⏳ Pendente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isRefetching}
-            className="gap-2"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
-            />
-            Atualizar
-          </Button>
-        </div>
-      </div>
+            {/* Schedule Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                Agendamento:
+              </span>
+              <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {schedules?.map((schedule) => (
+                    <SelectItem key={schedule.id} value={schedule.id}>
+                      {schedule.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                Visualização:
+              </span>
+              <div className="flex items-center border rounded-lg overflow-hidden shadow-sm">
+                <Button
+                  variant={viewMode === "flow" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none gap-1.5"
+                  onClick={() => setViewMode("flow")}
+                >
+                  <Workflow className="h-4 w-4" />
+                  <span className="hidden sm:inline">Fluxo</span>
+                </Button>
+                <Button
+                  variant={viewMode === "simple" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none gap-1.5"
+                  onClick={() => setViewMode("simple")}
+                >
+                  <List className="h-4 w-4" />
+                  <span className="hidden sm:inline">Simples</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Logs List */}
       {!logs || logs.length === 0 ? (
         <Card>
-          <CardContent className="py-12">
+          <CardContent className="py-16">
             <div className="text-center text-muted-foreground">
-              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-medium mb-1">
+              <Clock className="h-16 w-16 mx-auto mb-4 opacity-30" />
+              <h3 className="text-xl font-semibold mb-2">
                 Nenhum log encontrado
               </h3>
-              <p className="text-sm">
-                Os logs de execução aparecerão aqui quando as reservas forem
-                processadas.
+              <p className="text-sm max-w-md mx-auto">
+                {statusFilter !== "all" || scheduleFilter !== "all"
+                  ? "Tente ajustar os filtros para ver mais resultados."
+                  : "Os logs de execução aparecerão aqui quando as reservas forem processadas."}
               </p>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {logs.map((log) => {
-            const isExpanded = expandedLogs.has(log.id)
-            const hasStructuredLog =
-              log.executionLog && log.executionLog.length > 0
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Exibindo{" "}
+              <span className="font-semibold text-foreground">
+                {logs.length}
+              </span>{" "}
+              {logs.length === 1 ? "log" : "logs"}
+            </p>
+          </div>
 
-            return (
-              <Card key={log.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      {getStatusIcon(log.status)}
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <CardTitle className="text-base">
-                            {log.schedule?.name ||
-                              (log.isTest
-                                ? `Teste E2E - ${
-                                    log.testHour ||
-                                    (log.requestPayload as any)
-                                      ?.reservationHour ||
-                                    "?"
-                                  }:00`
-                                : "Execução Manual")}
-                          </CardTitle>
-                          {getStatusBadge(log.status)}
-                          {log.isTest && (
-                            <Badge variant="outline" className="gap-1">
-                              <FlaskConical className="h-3 w-3" />
-                              Teste
-                            </Badge>
-                          )}
-                          {log.executionType === "preflight" && (
-                            <Badge
-                              variant="secondary"
-                              className="gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300"
-                            >
-                              <Plane className="h-3 w-3" />
-                              Pre-flight
-                            </Badge>
-                          )}
-                          {log.executionType === "auto_cancel" && (
-                            <Badge
-                              variant="secondary"
-                              className="gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
-                            >
-                              <XCircle className="h-3 w-3" />
-                              Auto-Cancel
-                            </Badge>
-                          )}
-                          {log.executionType === "test_token" && (
-                            <Badge
-                              variant="secondary"
-                              className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
-                            >
-                              <CheckCircle2 className="h-3 w-3" />
-                              Teste de Token
-                            </Badge>
-                          )}
-                        </div>
-                        <CardDescription>{log.message}</CardDescription>
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1">
-                          {log.reservationDate && (
-                            <span>
-                              📅 Data da reserva:{" "}
-                              {new Date(log.reservationDate).toLocaleDateString(
-                                "pt-BR"
-                              )}
-                            </span>
-                          )}
-                          <span>
-                            🕐 Executado em:{" "}
-                            {new Date(log.executedAt).toLocaleString("pt-BR")}
-                          </span>
-                          {log.durationMs && (
-                            <span>⏱️ Duração: {log.durationMs}ms</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleExpanded(log.id)}
-                      className="gap-1"
-                    >
-                      {isExpanded ? (
-                        <>
-                          <ChevronUp className="h-4 w-4" />
-                          Fechar
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="h-4 w-4" />
-                          Detalhes
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardHeader>
-
-                {isExpanded && (
-                  <CardContent className="pt-0">
-                    <div className="space-y-4 border-t pt-4">
-                      {/* Modo de visualização de fluxo (se houver log estruturado) */}
-                      {viewMode === "flow" && hasStructuredLog ? (
-                        <FlowStepsLog
-                          result={convertToExecutionResult(log)}
-                          isTest={log.isTest}
-                          executionType={log.executionType}
-                          title="Etapas da Execução"
-                          subtitle={
-                            log.status === "success"
-                              ? "Todas as etapas concluídas com sucesso"
-                              : log.status === "error"
-                              ? `Falha na execução`
-                              : undefined
-                          }
-                        />
-                      ) : (
-                        /* Modo de visualização simples (payloads brutos) */
-                        <>
-                          {log.requestPayload && (
-                            <div>
-                              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                                <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
-                                Request Payload
-                              </h4>
-                              <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-48">
-                                {JSON.stringify(log.requestPayload, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                          {log.responsePayload && (
-                            <div>
-                              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                                <span
-                                  className={`inline-block w-2 h-2 rounded-full ${
-                                    log.status === "success"
-                                      ? "bg-green-500"
-                                      : "bg-red-500"
-                                  }`}
-                                ></span>
-                                Response Payload
-                              </h4>
-                              <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-48">
-                                {JSON.stringify(log.responsePayload, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      {/* Mostrar mensagem informativa se não houver log estruturado em modo flow */}
-                      {viewMode === "flow" && !hasStructuredLog && (
-                        <div className="p-4 bg-muted/50 rounded-lg border border-dashed">
-                          <p className="text-sm text-muted-foreground text-center">
-                            ℹ️ Este log não possui informações de etapas
-                            estruturadas.
-                            <br />
-                            <span className="text-xs">
-                              Logs mais antigos podem não ter esse nível de
-                              detalhamento.
-                            </span>
-                          </p>
-
-                          {(log.requestPayload || log.responsePayload) && (
-                            <div className="mt-4 space-y-3">
-                              {log.requestPayload && (
-                                <details className="text-xs">
-                                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                    Ver Request Payload
-                                  </summary>
-                                  <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-32">
-                                    {JSON.stringify(
-                                      log.requestPayload,
-                                      null,
-                                      2
-                                    )}
-                                  </pre>
-                                </details>
-                              )}
-                              {log.responsePayload && (
-                                <details className="text-xs">
-                                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                    Ver Response Payload
-                                  </summary>
-                                  <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-32">
-                                    {JSON.stringify(
-                                      log.responsePayload,
-                                      null,
-                                      2
-                                    )}
-                                  </pre>
-                                </details>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            )
-          })}
+          <div className="space-y-4">
+            {logs.map((log) => (
+              <LogCard
+                key={log.id}
+                log={log}
+                viewMode={viewMode}
+                showApiDetails={true}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
