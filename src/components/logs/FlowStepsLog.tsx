@@ -49,8 +49,24 @@ export function FlowStepsLog({
   const effectiveType: ExecutionType =
     executionType || (isTest ? "test" : "reservation")
 
-  // Obtém os steps para o tipo de execução
-  const flowSteps = getStepsForType(effectiveType)
+  // Para test_token, usar apenas os steps que foram realmente executados
+  // Para outros tipos, usar todos os steps disponíveis
+  const flowSteps =
+    effectiveType === "test_token" && result?.log
+      ? result.log.map((logEntry) => {
+          const stepDef = getStepsForType(effectiveType).find(
+            (s) => s.id === logEntry.step
+          )
+          return (
+            stepDef || {
+              id: logEntry.step,
+              name: logEntry.step,
+              icon: CheckCircle2,
+              description: logEntry.message || "",
+            }
+          )
+        })
+      : getStepsForType(effectiveType)
 
   // Determina o status de cada etapa baseado no log
   const getStepStatus = (
@@ -442,16 +458,17 @@ export function FlowStepsLog({
                       <p className="text-sm text-red-800 dark:text-red-200 font-medium">
                         {result.error}
                       </p>
-                      {logEntry?.details && Object.keys(logEntry.details).length > 0 && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-red-700 dark:text-red-300 cursor-pointer font-medium">
-                            Ver detalhes da resposta da API
-                          </summary>
-                          <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto p-2 bg-red-50 dark:bg-red-950/50 rounded">
-                            {JSON.stringify(logEntry.details, null, 2)}
-                          </pre>
-                        </details>
-                      )}
+                      {logEntry?.details &&
+                        Object.keys(logEntry.details).length > 0 && (
+                          <details className="mt-2">
+                            <summary className="text-xs text-red-700 dark:text-red-300 cursor-pointer font-medium">
+                              Ver detalhes da resposta da API
+                            </summary>
+                            <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto p-2 bg-red-50 dark:bg-red-950/50 rounded">
+                              {JSON.stringify(logEntry.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
                       {result.details &&
                         Object.keys(result.details).length > 0 && (
                           <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">
@@ -473,6 +490,43 @@ export function FlowStepsLog({
                         <pre className="mt-1 p-2 rounded bg-background/50 text-xs overflow-x-auto max-h-32">
                           {JSON.stringify(logEntry.details, null, 2)}
                         </pre>
+                      </details>
+                    )}
+
+                  {/* Response da API para authenticate em test_token */}
+                  {effectiveType === "test_token" &&
+                    step.id === "authenticate" &&
+                    logEntry &&
+                    logEntry.details && (
+                      <details className="mt-3">
+                        <summary className="text-xs font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-900 dark:hover:text-blue-100">
+                          📊 Ver resposta da API
+                        </summary>
+                        <div className="mt-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                          <pre className="text-xs overflow-x-auto">
+                            {JSON.stringify(logEntry.details, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    )}
+
+                  {/* Response da API para list_reservations em test_token */}
+                  {effectiveType === "test_token" &&
+                    step.id === "list_reservations" &&
+                    result?.responsePayload?.apiResponse && (
+                      <details className="mt-3">
+                        <summary className="text-xs font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-900 dark:hover:text-blue-100">
+                          📊 Ver resposta da API
+                        </summary>
+                        <div className="mt-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                          <pre className="text-xs overflow-x-auto">
+                            {JSON.stringify(
+                              result.responsePayload.apiResponse,
+                              null,
+                              2
+                            )}
+                          </pre>
+                        </div>
                       </details>
                     )}
                 </div>

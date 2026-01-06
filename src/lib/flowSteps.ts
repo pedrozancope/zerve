@@ -17,7 +17,12 @@ import {
 } from "lucide-react"
 
 // Tipos de execução suportados
-export type ExecutionType = "reservation" | "preflight" | "test" | "auto_cancel"
+export type ExecutionType =
+  | "reservation"
+  | "preflight"
+  | "test"
+  | "auto_cancel"
+  | "test_token"
 
 // Definição das etapas do fluxo de execução
 export interface FlowStep {
@@ -58,6 +63,42 @@ export const ALL_FLOW_STEPS: FlowStep[] = [
     icon: Database,
     description: "Carregando configuração do Auto-Cancel",
     appliesTo: ["auto_cancel"],
+  },
+  // Steps para test_token - sequência completa
+  {
+    id: "get_token",
+    name: "Buscar Token",
+    icon: Key,
+    description: "Obtendo refresh token do banco de dados",
+    appliesTo: ["test_token"],
+  },
+  {
+    id: "authenticate",
+    name: "Autenticar",
+    icon: Shield,
+    description: "Autenticando com SuperLógica",
+    appliesTo: ["test_token"],
+  },
+  {
+    id: "list_reservations",
+    name: "Listar Reservas",
+    icon: Search,
+    description: "Testando API listando reservas",
+    appliesTo: ["test_token"],
+  },
+  {
+    id: "update_token",
+    name: "Atualizar Token",
+    icon: RefreshCw,
+    description: "Atualizando refresh token no banco",
+    appliesTo: ["test_token"],
+  },
+  {
+    id: "success",
+    name: "Sucesso",
+    icon: CheckCircle2,
+    description: "Teste concluído com sucesso",
+    appliesTo: ["test_token"],
   },
   {
     id: "getting_auth_token",

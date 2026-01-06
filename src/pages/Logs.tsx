@@ -294,6 +294,15 @@ export default function Logs() {
                               Auto-Cancel
                             </Badge>
                           )}
+                          {log.executionType === "test_token" && (
+                            <Badge
+                              variant="secondary"
+                              className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              Teste de Token
+                            </Badge>
+                          )}
                         </div>
                         <CardDescription>{log.message}</CardDescription>
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1">

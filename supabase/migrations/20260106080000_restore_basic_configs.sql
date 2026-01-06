@@ -18,7 +18,7 @@ BEGIN
   
   -- auth_token
   IF NOT EXISTS (SELECT 1 FROM app_config WHERE key = 'auth_token' AND user_id IS NULL) THEN
-    INSERT INTO app_config (key, value, user_id) VALUES ('auth_token', 'eyJhbGciOiJIUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJhMzIzM2U0NS0wYTk1LTRlMWMtYTg0OC0', NULL);
+    INSERT INTO app_config (key, value, user_id) VALUES ('auth_token', 'KEY_HERE', NULL);
   END IF;
 END $$;
 

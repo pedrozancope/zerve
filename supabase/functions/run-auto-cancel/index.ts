@@ -247,11 +247,14 @@ async function listReservations(
 
   if (!response.ok) {
     const error: any = new Error(
-      `List reservations failed (${response.status}): ${JSON.stringify(responseData)}`
+      `List reservations failed (${response.status}): ${JSON.stringify(
+        responseData
+      )}`
     )
     error.apiStatus = response.status
     error.apiResponse = responseData
-    error.apiMessage = responseData?.msg || responseData?.message || responseText
+    error.apiMessage =
+      responseData?.msg || responseData?.message || responseText
     throw error
   }
 
@@ -317,11 +320,14 @@ async function cancelReservation(
 
   if (!response.ok) {
     const error: any = new Error(
-      `Cancel reservation failed (${response.status}): ${JSON.stringify(responseData)}`
+      `Cancel reservation failed (${response.status}): ${JSON.stringify(
+        responseData
+      )}`
     )
     error.apiStatus = response.status
     error.apiResponse = responseData
-    error.apiMessage = responseData?.msg || responseData?.message || responseText
+    error.apiMessage =
+      responseData?.msg || responseData?.message || responseText
     throw error
   }
 
@@ -925,7 +931,10 @@ serve(async (req) => {
 
             if (hasError) {
               // Tratar como erro mesmo que HTTP seja 206
-              const errorMsg = itemResult?.msg || cancelResult.msg || "Erro ao cancelar reserva"
+              const errorMsg =
+                itemResult?.msg ||
+                cancelResult.msg ||
+                "Erro ao cancelar reserva"
               throw new Error(errorMsg)
             }
 

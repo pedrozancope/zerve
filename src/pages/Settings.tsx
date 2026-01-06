@@ -31,36 +31,7 @@ import {
   useUpsertConfig,
   useConsecutiveDaysConfig,
 } from "@/hooks/useConfig"
-
-// Função utilitária para chamada da Edge Function
-async function testarReservaAgora() {
-  try {
-    const res = await fetch("/functions/v1/execute-reservation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // Se precisar passar parâmetros, adicione no body
-      // body: JSON.stringify({ ... })
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      toast.error(`Erro ao executar reserva: ${data?.error || res.statusText}`)
-    } else {
-      toast.success("Reserva executada! Veja detalhes no log.")
-    }
-    // Opcional: exibir detalhes do log/execução
-    if (data?.log) {
-      toast(
-        <pre style={{ maxWidth: 400, whiteSpace: "pre-wrap" }}>
-          {typeof data.log === "string"
-            ? data.log
-            : JSON.stringify(data.log, null, 2)}
-        </pre>
-      )
-    }
-  } catch (err) {
-    toast.error("Erro inesperado ao testar reserva")
-  }
-}
+import { useTestToken } from "@/hooks/useTestToken"
 
 export default function Settings() {
   const [showToken, setShowToken] = useState(false)
@@ -86,6 +57,7 @@ export default function Settings() {
     useConsecutiveDaysConfig()
 
   const upsertConfig = useUpsertConfig()
+  const testToken = useTestToken()
 
   useEffect(() => {
     if (notifySuccessConfig) {
@@ -281,7 +253,12 @@ export default function Settings() {
                     {tokenLastUpdated
                       ? `Atualizado em ${new Date(
                           tokenLastUpdated
-                        ).toLocaleDateString("pt-BR")}`
+                        ).toLocaleDateString("pt-BR")} às ${new Date(
+                          tokenLastUpdated
+                        ).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}`
                       : "Nenhum token configurado"}
                   </p>
                 </div>
@@ -313,6 +290,37 @@ export default function Settings() {
                     ) : (
                       <Eye className="h-4 w-4" />
                     )}
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const result = await testToken.mutateAsync()
+                        if (result.success) {
+                          toast.success(
+                            `✅ Token válido! API está funcionando. ${
+                              result.data?.reservationsFound || 0
+                            } reserva(s) encontrada(s).`
+                          )
+                        }
+                      } catch (error: any) {
+                        toast.error(
+                          `❌ Falha ao testar token: ${
+                            error?.message || "Erro desconhecido"
+                          }`
+                        )
+                      }
+                    }}
+                    disabled={testToken.isPending}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 shrink-0"
+                  >
+                    <CheckCircle2
+                      className={`h-4 w-4 ${
+                        testToken.isPending ? "animate-spin" : ""
+                      }`}
+                    />
+                    {testToken.isPending ? "Testando..." : "Testar"}
                   </Button>
                 </div>
               </div>
@@ -363,15 +371,6 @@ export default function Settings() {
                 <li>Procure por "refresh_token" no LocalStorage</li>
                 <li>Copie o valor e cole aqui</li>
               </ol>
-              <div className="mt-6 flex justify-end">
-                <Button
-                  variant="secondary"
-                  onClick={testarReservaAgora}
-                  className="gap-2"
-                >
-                  <span>Testar Reserva Agora</span>
-                </Button>
-              </div>
             </div>
           </CardContent>
         </Card>
