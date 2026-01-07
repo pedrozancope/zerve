@@ -721,7 +721,9 @@ serve(async (req) => {
       )
 
     if (apiConfigError) {
-      throw new Error(`Erro ao buscar unit_id/condo_id: ${apiConfigError.message}`)
+      throw new Error(
+        `Erro ao buscar unit_id/condo_id: ${apiConfigError.message}`
+      )
     }
 
     const getScopedValue = (key: string) => {
@@ -743,10 +745,14 @@ serve(async (req) => {
       )
     }
 
-    addLog("loading_unit_condo_config", "IDs de unidade/condomínio carregados", {
-      hasUnitId: !!unitId,
-      hasCondoId: !!condoId,
-    })
+    addLog(
+      "loading_unit_condo_config",
+      "IDs de unidade/condomínio carregados",
+      {
+        hasUnitId: !!unitId,
+        hasCondoId: !!condoId,
+      }
+    )
 
     // ==========================================================================
     // GET AUTH TOKEN
@@ -1264,6 +1270,7 @@ serve(async (req) => {
         },
         duration_ms: duration,
         execution_type: "auto_cancel",
+        is_test: isDryRun,
         flow_steps: executionLog,
       })
       .select()
@@ -1404,6 +1411,7 @@ serve(async (req) => {
           },
           duration_ms: duration,
           execution_type: "auto_cancel",
+          is_test: isDryRun,
           flow_steps: executionLog,
         })
         .select("id")

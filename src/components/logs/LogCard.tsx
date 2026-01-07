@@ -1,31 +1,40 @@
 import { useState } from "react"
-import {
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { ChevronRight } from "lucide-react"
 import { FlowStepsLog } from "./FlowStepsLog"
-import { ExecutionTypeBadge } from "./ExecutionTypeBadge"
 import { ApiRequestResponse } from "./ApiRequestResponse"
 import type { ExecutionLog } from "@/types"
 import type { ExecutionResult } from "@/lib/flowSteps"
+import { cn } from "@/lib/utils"
 
 interface LogCardProps {
   log: ExecutionLog
   defaultExpanded?: boolean
   viewMode?: "flow" | "simple"
   showApiDetails?: boolean
+}
+
+// Configuração visual por tipo de execução
+const executionTypeConfig = {
+  reservation: {
+    label: "Reserva",
+    dotClass: "bg-blue-500",
+  },
+  preflight: {
+    label: "Pre-flight",
+    dotClass: "bg-sky-500",
+  },
+  test: {
+    label: "Teste E2E",
+    dotClass: "bg-orange-500",
+  },
+  test_token: {
+    label: "Teste de Token",
+    dotClass: "bg-emerald-500",
+  },
+  auto_cancel: {
+    label: "Auto-Cancel",
+    dotClass: "bg-purple-500",
+  },
 }
 
 export function LogCard({
@@ -36,30 +45,7 @@ export function LogCard({
 }: LogCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
-  const getStatusIcon = (status: ExecutionLog["status"]) => {
-    switch (status) {
-      case "success":
-        return <CheckCircle2 className="h-5 w-5 text-success" />
-      case "error":
-        return <XCircle className="h-5 w-5 text-destructive" />
-      case "pending":
-        return <Clock className="h-5 w-5 text-warning" />
-    }
-  }
-
-  const getStatusBadge = (status: ExecutionLog["status"]) => {
-    const variants = {
-      success: "success" as const,
-      error: "destructive" as const,
-      pending: "secondary" as const,
-    }
-    const labels = {
-      success: "Sucesso",
-      error: "Erro",
-      pending: "Pendente",
-    }
-    return <Badge variant={variants[status]}>{labels[status]}</Badge>
-  }
+  const typeConfig = executionTypeConfig[log.executionType]
 
   // Converter ExecutionLog para ExecutionResult para o FlowStepsLog
   const convertToExecutionResult = (): ExecutionResult => {
@@ -82,7 +68,6 @@ export function LogCard({
 
   const hasStructuredLog = log.executionLog && log.executionLog.length > 0
 
-  // Verificar se há chamadas de API externas para mostrar request/response
   const hasApiCalls =
     showApiDetails &&
     (log.requestPayload || log.responsePayload) &&
@@ -92,74 +77,202 @@ export function LogCard({
       log.executionType === "test_token" ||
       log.executionType === "preflight")
 
+  // Nome do card
+  const getTitle = () => {
+    if (log.schedule?.name) return log.schedule.name
+    if (log.executionType === "test")
+      return `Teste E2E - ${
+        log.testHour || (log.requestPayload as any)?.reservationHour || "?"
+      }:00`
+    return typeConfig.label
+  }
+
+  // Formatar data/hora
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  }
+
+  const formatTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  // Verificar se é modo teste (dry-run)
+  // Usa o campo isTest do log OU detecta pela mensagem como fallback
+  const isDryRun =
+    log.isTest === true ||
+    log.message?.toLowerCase().includes("dry run") ||
+    log.message?.includes("[DRY RUN]")
+
+  // Status config
+  const getStatusConfig = () => {
+    switch (log.status) {
+      case "success":
+        return {
+          label: "Sucesso",
+          className:
+            "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-950/50",
+        }
+      case "error":
+        return {
+          label: "Erro",
+          className:
+            "text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950/50",
+        }
+      case "pending":
+        return {
+          label: "Pendente",
+          className:
+            "text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/50",
+        }
+    }
+  }
+
+  const statusInfo = getStatusConfig()
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 flex-1">
-            {getStatusIcon(log.status)}
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <CardTitle className="text-base">
-                  {log.schedule?.name ||
-                    (log.isTest
-                      ? `Teste E2E - ${
-                          log.testHour ||
-                          (log.requestPayload as any)?.reservationHour ||
-                          "?"
-                        }:00`
-                      : log.executionType === "test_token"
-                      ? "Teste de Token"
-                      : log.executionType === "auto_cancel"
-                      ? "Auto-Cancel"
-                      : "Execução Manual")}
-                </CardTitle>
-                {getStatusBadge(log.status)}
-                <ExecutionTypeBadge
-                  executionType={log.executionType}
-                  isTest={log.isTest}
-                />
-              </div>
-              <CardDescription>{log.message}</CardDescription>
-              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1">
-                {log.reservationDate && (
-                  <span>
-                    📅 Data da reserva:{" "}
-                    {new Date(log.reservationDate).toLocaleDateString("pt-BR")}
-                  </span>
+    <div className="rounded-xl border bg-card overflow-hidden">
+      {/* Header - Clickable */}
+      <div
+        className="px-6 py-5 cursor-pointer hover:bg-muted/40 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {/* Grid layout para informações */}
+        <div className="grid grid-cols-12 gap-4 items-start">
+          {/* Coluna 1: Tipo + Nome (span 4) */}
+          <div className="col-span-12 sm:col-span-5 lg:col-span-4">
+            <div className="flex items-center gap-3">
+              {/* Tipo indicator dot */}
+              <div
+                className={cn(
+                  "w-2 h-2 rounded-full flex-shrink-0",
+                  typeConfig.dotClass
                 )}
-                <span>
-                  🕐 Executado em:{" "}
-                  {new Date(log.executedAt).toLocaleString("pt-BR")}
-                </span>
-                {log.durationMs && <span>⏱️ Duração: {log.durationMs}ms</span>}
+              />
+
+              <div className="min-w-0">
+                {/* Tipo label */}
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {typeConfig.label}
+                </p>
+                {/* Nome */}
+                <h3 className="font-semibold text-sm mt-0.5 truncate">
+                  {getTitle()}
+                </h3>
               </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="gap-1"
-          >
-            {isExpanded ? (
+
+          {/* Coluna 2: Executado em (span 2) */}
+          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Executado
+            </p>
+            <p className="text-sm mt-0.5">
+              <span className="font-medium">{formatDate(log.executedAt)}</span>
+              <span className="text-muted-foreground ml-1">
+                {formatTime(log.executedAt)}
+              </span>
+            </p>
+          </div>
+
+          {/* Coluna 3: Data Reserva (span 2) - só para reservas */}
+          <div className="col-span-6 sm:col-span-2 lg:col-span-2">
+            {log.reservationDate ? (
               <>
-                <ChevronUp className="h-4 w-4" />
-                Fechar
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Reserva
+                </p>
+                <p className="text-sm mt-0.5 font-medium">
+                  {formatDate(log.reservationDate)}
+                </p>
               </>
             ) : (
               <>
-                <ChevronDown className="h-4 w-4" />
-                Detalhes
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Duração
+                </p>
+                <p className="text-sm mt-0.5">
+                  {log.durationMs ? `${log.durationMs}ms` : "-"}
+                </p>
               </>
             )}
-          </Button>
-        </div>
-      </CardHeader>
+          </div>
 
+          {/* Coluna 4: Modo (span 2) */}
+          <div className="col-span-6 sm:col-span-2 lg:col-span-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Modo
+            </p>
+            <p className="text-sm mt-0.5">
+              {isDryRun ? (
+                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  Simulação
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  Produção
+                </span>
+              )}
+            </p>
+          </div>
+
+          {/* Coluna 5: Status + Expand (span 2) */}
+          <div className="col-span-6 sm:col-span-12 lg:col-span-2 flex items-center justify-between sm:justify-end gap-3">
+            {/* Status badge */}
+            <span
+              className={cn(
+                "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
+                statusInfo.className
+              )}
+            >
+              {statusInfo.label}
+            </span>
+
+            {/* Expand icon */}
+            <ChevronRight
+              className={cn(
+                "h-5 w-5 text-muted-foreground transition-transform flex-shrink-0",
+                isExpanded && "rotate-90"
+              )}
+            />
+          </div>
+        </div>
+
+        {/* Mensagem - linha separada */}
+        {log.message && (
+          <div className="mt-3 ml-5 pl-3 border-l-2 border-muted">
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {log.message}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Expanded content */}
       {isExpanded && (
-        <CardContent className="pt-0">
-          <div className="space-y-4 border-t pt-4">
+        <div className="border-t bg-muted/30">
+          <div className="px-6 py-5 space-y-4">
+            {/* Info extra quando expandido */}
+            {log.reservationDate && log.durationMs && (
+              <div className="flex items-center gap-6 text-sm text-muted-foreground pb-4 border-b">
+                <span>
+                  <span className="font-medium text-foreground">
+                    {log.durationMs}ms
+                  </span>{" "}
+                  de duração
+                </span>
+              </div>
+            )}
+
             {/* Modo de visualização de fluxo (se houver log estruturado) */}
             {viewMode === "flow" && hasStructuredLog ? (
               <FlowStepsLog
@@ -257,8 +370,8 @@ export function LogCard({
               </div>
             )}
           </div>
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </div>
   )
 }
