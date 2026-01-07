@@ -200,6 +200,20 @@
   }
 }
 
+/* Toaster positioning - ensure it doesn't overlap the sidebar */
+[data-sonner-toaster] {
+  z-index: 9999 !important;
+}
+
+/* On mobile, position toasts above the bottom navigation */
+@media (max-width: 768px) {
+  [data-sonner-toaster][data-position="bottom-right"],
+  [data-sonner-toaster][data-position="bottom-left"],
+  [data-sonner-toaster][data-position="bottom-center"] {
+    bottom: calc(70px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

@@ -139,22 +139,39 @@ export default function AutoCancel() {
       })
     } catch (error) {
       console.error(error)
+      toast.error("Erro ao salvar configurações")
     }
   }
 
   const handleRunNow = async () => {
     try {
-      await runAutoCancel.mutateAsync({ dryRun: false, adHoc: true })
+      const result = await runAutoCancel.mutateAsync({
+        dryRun: false,
+        adHoc: true,
+      })
+      const cancelledCount = result?.execution?.successfulCancellations || 0
+      if (cancelledCount === 0) {
+        toast.success("Auto-Cancel executado: Nenhuma reserva encontrada")
+      } else {
+        toast.success(
+          `Auto-Cancel executado: ${cancelledCount} ${
+            cancelledCount === 1 ? "reserva cancelada" : "reservas canceladas"
+          }`
+        )
+      }
     } catch (error) {
       console.error(error)
+      toast.error("Erro ao executar Auto-Cancel")
     }
   }
 
   const handleDryRun = async () => {
     try {
       await runAutoCancel.mutateAsync({ dryRun: true, adHoc: true })
+      toast.success("Simulação concluída! Verifique os logs para detalhes.")
     } catch (error) {
       console.error(error)
+      toast.error("Erro ao executar simulação")
     }
   }
 

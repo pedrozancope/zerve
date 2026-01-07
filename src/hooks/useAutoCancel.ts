@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/services/supabase"
-import { toast } from "sonner"
 
 // =============================================================================
 // Types
@@ -168,11 +167,9 @@ export function useUpsertAutoCancelConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto_cancel_config"] })
-      toast.success("Configuração do Auto-Cancel atualizada!")
     },
     onError: (error) => {
       console.error("Erro ao atualizar configuração do Auto-Cancel:", error)
-      toast.error("Erro ao atualizar configuração")
     },
   })
 }
@@ -230,30 +227,12 @@ export function useRunAutoCancel() {
 
       return data
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, _variables) => {
       queryClient.invalidateQueries({ queryKey: ["auto_cancel_config"] })
       queryClient.invalidateQueries({ queryKey: ["execution_logs"] })
-
-      if (variables.dryRun) {
-        toast.success(
-          "🔍 Simulação concluída! Verifique os logs para detalhes."
-        )
-      } else {
-        const cancelledCount = data?.execution?.successfulCancellations || 0
-        if (cancelledCount === 0) {
-          toast.success("✅ Auto-Cancel executado: Nenhuma reserva encontrada")
-        } else {
-          toast.success(
-            `🎾 Auto-Cancel executado: ${cancelledCount} ${
-              cancelledCount === 1 ? "reserva cancelada" : "reservas canceladas"
-            }`
-          )
-        }
-      }
     },
     onError: (error) => {
       console.error("Erro ao executar Auto-Cancel:", error)
-      toast.error("Erro ao executar Auto-Cancel")
     },
   })
 }
@@ -275,11 +254,9 @@ export function useDeleteAutoCancelConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto_cancel_config"] })
-      toast.success("Configuração do Auto-Cancel removida!")
     },
     onError: (error) => {
       console.error("Erro ao deletar configuração do Auto-Cancel:", error)
-      toast.error("Erro ao deletar configuração")
     },
   })
 }

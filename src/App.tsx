@@ -51,7 +51,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-      <Toaster position="top-center" richColors />
+      <Toaster position="bottom-right" richColors expand={false} closeButton />
     </QueryClientProvider>
   )
 }

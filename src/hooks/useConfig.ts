@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/services/supabase"
 import type { Database } from "@/types/supabase"
 import type { AppConfig } from "@/types"
-import { toast } from "sonner"
 
 type AppConfigRow = Database["public"]["Tables"]["app_config"]["Row"]
 // type AppConfigInsert = Database["public"]["Tables"]["app_config"]["Insert"]
@@ -132,11 +131,9 @@ export function useUpsertConfig() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["app_config"] })
       queryClient.invalidateQueries({ queryKey: ["app_config", variables.key] })
-      toast.success("Configuração atualizada com sucesso!")
     },
     onError: (error) => {
       console.error("Erro ao atualizar configuração:", error)
-      toast.error("Erro ao atualizar configuração")
     },
   })
 }
@@ -153,11 +150,9 @@ export function useDeleteConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["app_config"] })
-      toast.success("Configuração removida!")
     },
     onError: (error) => {
       console.error("Erro ao deletar configuração:", error)
-      toast.error("Erro ao deletar configuração")
     },
   })
 }
