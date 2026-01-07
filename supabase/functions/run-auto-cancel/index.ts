@@ -769,7 +769,10 @@ serve(async (req) => {
       throw new Error("Refresh token não configurado no sistema")
     }
 
-    addLog("getting_auth_token", "Refresh token recuperado do banco")
+    addLog(
+      "getting_auth_token",
+      "Token de autenticação obtido do banco de dados"
+    )
 
     // ==========================================================================
     // AUTHENTICATE
@@ -779,8 +782,6 @@ serve(async (req) => {
     const clientId = Deno.env.get("SUPERLOGICA_CLIENT_ID")
     const sessionId = Deno.env.get("SUPERLOGICA_SESSION_ID")
     const personId = Deno.env.get("SUPERLOGICA_PERSON_ID")
-
-    addLog("authenticating", "Iniciando autenticação com SuperLogica...")
 
     // Save request information
     executionLog[executionLog.length - 1].request = {
@@ -804,10 +805,14 @@ serve(async (req) => {
       refresh_token_length: authResult.refresh_token.length,
     }
 
-    addLog("authenticating", "Autenticação realizada com sucesso", {
-      hasAccessToken: !!authResult.access_token,
-      hasRefreshToken: !!authResult.refresh_token,
-    })
+    addLog(
+      "authenticating",
+      "Autenticação realizada com sucesso na SuperLógica",
+      {
+        hasAccessToken: !!authResult.access_token,
+        hasRefreshToken: !!authResult.refresh_token,
+      }
+    )
 
     // Atualizar o refresh token no banco se mudou
     if (authResult.refresh_token !== tokenConfig.value) {
@@ -816,7 +821,7 @@ serve(async (req) => {
         .update({ value: authResult.refresh_token })
         .eq("key", "auth_token")
 
-      addLog("updating_token", "Refresh token atualizado no banco")
+      addLog("updating_token", "Novo token salvo no banco de dados")
     }
 
     // ==========================================================================
@@ -826,11 +831,15 @@ serve(async (req) => {
 
     const todayBRT = getTodayBRT()
 
-    addLog("calculating_date", "Data de hoje calculada (BRT)", {
-      date: todayBRT,
-      timezone: "America/Sao_Paulo (BRT)",
-      format: "MM/DD/YYYY",
-    })
+    addLog(
+      "calculating_date",
+      `Data atual: ${todayBRT} (fuso horário de Brasília)`,
+      {
+        date: todayBRT,
+        timezone: "America/Sao_Paulo (BRT)",
+        format: "MM/DD/YYYY",
+      }
+    )
 
     // ==========================================================================
     // LIST RESERVATIONS
@@ -840,7 +849,7 @@ serve(async (req) => {
     const baseUrl = "speedassessoria.superlogica.net"
     const listUrl = `https://${baseUrl}/areadocondomino/atual/reservas/obterreservasdaunidade`
 
-    addLog("listing_reservations", "Listando reservas da API...")
+    addLog("listing_reservations", "Buscando reservas na API da SuperLógica...")
 
     // Save request information
     executionLog[executionLog.length - 1].request = {
@@ -870,23 +879,6 @@ serve(async (req) => {
       data: listResult.data,
     }
 
-    addLog("listing_reservations", "Reservas listadas da API", {
-      status: listResult.status,
-      message: listResult.msg,
-      multipleResponse: listResult.multipleresponse,
-      requestParams: {
-        unitId,
-        condoId,
-        date: todayBRT,
-      },
-      dataStructure: {
-        hasData: !!listResult.data,
-        isArray: Array.isArray(listResult.data),
-        dataLength: listResult.data?.length || 0,
-        fullData: listResult.data, // Retorno completo da API para debug
-      },
-    })
-
     // Extrair reservas do resultado
     const reservations: ReservationItem[] = []
 
@@ -897,17 +889,6 @@ serve(async (req) => {
     ) {
       const firstDataBlock = listResult.data[0]
 
-      addLog("listing_reservations", "Analisando primeiro bloco de dados", {
-        blockStatus: firstDataBlock.status,
-        blockMessage: firstDataBlock.msg,
-        hasData: !!firstDataBlock.data,
-        isDataArray: Array.isArray(firstDataBlock.data),
-        dataCount: Array.isArray(firstDataBlock.data)
-          ? firstDataBlock.data.length
-          : 0,
-        fullBlock: firstDataBlock, // Bloco completo para debug
-      })
-
       if (
         firstDataBlock.status === "200" &&
         Array.isArray(firstDataBlock.data)
@@ -917,11 +898,13 @@ serve(async (req) => {
     }
 
     addLog(
-      "filtering_reservations",
-      `${reservations.length} reservas encontradas para o dia`,
+      "listing_reservations",
+      `${reservations.length} reserva(s) encontrada(s) na API`,
       {
+        status: listResult.status,
+        message: listResult.msg,
         totalReservations: reservations.length,
-        dateFilter: todayBRT,
+        date: todayBRT,
         reservations: reservations.map((r) => ({
           id: r.id_reserva_res,
           area: r.st_nome_are,
@@ -929,6 +912,11 @@ serve(async (req) => {
         })),
       }
     )
+
+    addLog("filtering_reservations", `Filtrando reservas para a data de hoje`, {
+      totalReservations: reservations.length,
+      dateFilter: todayBRT,
+    })
 
     // ==========================================================================
     // FILTER RESERVATIONS FOR TODAY
@@ -950,10 +938,9 @@ serve(async (req) => {
 
     addLog(
       "filtering_today_reservations",
-      `${todayReservations.length} reservas confirmadas para hoje`,
+      `${todayReservations.length} reserva(s) identificada(s) para cancelamento`,
       {
         today: todayBRT,
-        todayFormat: "MM/DD/YYYY",
         todayReservations: todayReservations.map((r) => ({
           id: r.id_reserva_res,
           area: r.st_nome_are,
@@ -978,9 +965,13 @@ serve(async (req) => {
     }> = []
 
     if (todayReservations.length === 0) {
-      addLog("cancelling_reservations", "Nenhuma reserva para cancelar hoje", {
-        reason: "Não há reservas confirmadas para a data de hoje",
-      })
+      addLog(
+        "cancelling_reservations",
+        "Nenhuma reserva encontrada para cancelar",
+        {
+          reason: "Não há reservas confirmadas para a data de hoje",
+        }
+      )
     } else {
       for (const reservation of todayReservations) {
         const reservationId = reservation.id_reserva_res
@@ -991,7 +982,7 @@ serve(async (req) => {
           // Modo dry run: simular cancelamento
           addLog(
             "cancelling_reservations",
-            `🔍 [DRY RUN] Simulando cancelamento da reserva ${reservationId}`,
+            `[SIMULAÇÃO] Cancelamento simulado: ${areaName}`,
             {
               reservationId,
               areaId,
@@ -1073,8 +1064,8 @@ serve(async (req) => {
             addLog(
               "cancelling_reservations",
               success
-                ? `✅ Reserva ${reservationId} cancelada com sucesso`
-                : `⚠️ Falha ao cancelar reserva ${reservationId}`,
+                ? `Reserva cancelada: ${areaName}`
+                : `Falha ao cancelar: ${areaName}`,
               {
                 reservationId,
                 areaId,
@@ -1097,16 +1088,12 @@ serve(async (req) => {
             const errorMsg =
               error instanceof Error ? error.message : String(error)
 
-            addLog(
-              "cancelling_reservations",
-              `❌ Erro ao cancelar reserva ${reservationId}`,
-              {
-                reservationId,
-                areaId,
-                areaName,
-                error: errorMsg,
-              }
-            )
+            addLog("cancelling_reservations", `Erro ao cancelar: ${areaName}`, {
+              reservationId,
+              areaId,
+              areaName,
+              error: errorMsg,
+            })
 
             cancelResults.push({
               id: reservationId,
@@ -1127,7 +1114,7 @@ serve(async (req) => {
 
     addLog(
       "cancellation_summary",
-      `Cancelamento concluído: ${successfulCancellations} sucesso, ${failedCancellations} falhas`,
+      `Processo finalizado: ${successfulCancellations} cancelada(s), ${failedCancellations} falha(s)`,
       {
         total: cancelResults.length,
         successful: successfulCancellations,
@@ -1150,7 +1137,7 @@ serve(async (req) => {
         .update({ last_executed_at: new Date().toISOString() })
         .eq("id", config.id)
 
-      addLog("updating_config", "Config atualizada com timestamp da execução")
+      addLog("updating_config", "Configuração atualizada com data da execução")
     }
 
     // ==========================================================================
@@ -1167,7 +1154,7 @@ serve(async (req) => {
 
     notificationEmail = emailConfig?.value || notificationEmail
 
-    addLog("getting_notification_email", "E-mail de notificação obtido", {
+    addLog("getting_notification_email", "E-mail de notificação configurado", {
       hasEmail: !!notificationEmail,
       email: notificationEmail
         ? notificationEmail.substring(0, 3) + "***"
@@ -1213,8 +1200,8 @@ serve(async (req) => {
       addLog(
         "sending_notification",
         emailSent
-          ? "E-mail de sucesso enviado"
-          : "E-mail não enviado (erro na API)",
+          ? "E-mail de notificação enviado com sucesso"
+          : "Falha ao enviar e-mail",
         {
           email: notificationEmail,
           sent: emailSent,
@@ -1226,8 +1213,8 @@ serve(async (req) => {
       addLog(
         "sending_notification",
         !notificationEmail
-          ? "E-mail não configurado"
-          : "Notificação desabilitada para este tipo de resultado",
+          ? "E-mail não configurado - notificação ignorada"
+          : "Notificação desabilitada nas configurações",
         {
           configured: !!notificationEmail,
           enabled: shouldNotify,

@@ -306,22 +306,57 @@ export const PREFLIGHT_FLOW_STEPS: FlowStep[] = getStepsForType("preflight")
 
 // Mapeia IDs de step para nomes legíveis
 export const STEP_NAMES: Record<string, string> = {
+  // Geral
   initialization: "Inicialização",
-  parsing_payload: "Processamento do Payload",
-  test_mode: "Configuração Modo Teste",
-  getting_schedule: "Busca do Agendamento",
-  getting_refresh_token: "Obtenção do Refresh Token",
-  authenticating_superlogica: "Autenticação SuperLógica",
-  updating_refresh_token: "Atualização do Refresh Token",
-  making_reservation: "Execução da Reserva",
-  processing_response: "Processamento da Resposta",
-  saving_execution_log: "Salvamento do Log",
-  saving_reservation: "Salvamento da Reserva",
-  sending_notification: "Envio de Notificação",
-  preflight_start: "Início do Pre-flight",
-  updating_last_preflight: "Atualização do Status Pre-flight",
-  success: "Sucesso",
+  start: "Início",
+  success: "Concluído com Sucesso",
   error: "Erro",
+
+  // Conexão e Config
+  connecting_database: "Conectando ao Banco de Dados",
+  loading_config: "Carregando Configuração",
+  loading_unit_condo_config: "Carregando Configuração de Unidade",
+  validating_config: "Validando Configuração",
+  getting_api_config: "Carregando Configurações da API",
+  updating_config: "Atualizando Configuração",
+
+  // Autenticação
+  getting_auth_token: "Buscando Token de Autenticação",
+  getting_refresh_token: "Buscando Token de Autenticação",
+  get_token: "Buscando Token",
+  authenticating: "Autenticando na API",
+  authenticate: "Autenticando na API",
+  authenticating_superlogica: "Autenticando na SuperLógica",
+  updating_token: "Salvando Novo Token",
+  updating_refresh_token: "Salvando Novo Token",
+  update_token: "Salvando Novo Token",
+
+  // Reservas
+  getting_schedule: "Carregando Agendamento",
+  making_reservation: "Enviando Reserva para API",
+  processing_response: "Processando Resposta da Reserva",
+  saving_reservation: "Salvando Reserva no Banco",
+  parsing_payload: "Processando Requisição",
+  test_mode: "Modo de Teste E2E",
+
+  // Auto-Cancel
+  parsing_request: "Processando Requisição",
+  calculating_date: "Calculando Data Atual (BRT)",
+  listing_reservations: "Buscando Reservas na API",
+  list_reservations: "Buscando Reservas na API",
+  filtering_reservations: "Filtrando Reservas do Dia",
+  filtering_today_reservations: "Identificando Reservas para Cancelar",
+  cancelling_reservations: "Processando Cancelamentos",
+  cancellation_summary: "Resumo dos Cancelamentos",
+
+  // Pre-flight
+  preflight_start: "Início da Validação Pré-voo",
+  updating_last_preflight: "Atualizando Status Pré-voo",
+
+  // Logs e Notificações
+  saving_execution_log: "Salvando Log de Execução",
+  sending_notification: "Enviando Notificação por E-mail",
+  getting_notification_email: "Obtendo E-mail de Notificação",
 }
 
 // Função para obter steps relevantes baseado no contexto

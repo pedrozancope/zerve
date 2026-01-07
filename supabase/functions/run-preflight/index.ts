@@ -314,7 +314,7 @@ async function executePreflightForSchedule(
   }
 
   try {
-    addLog("initialization", "Iniciando Pre-flight", {
+    addLog("initialization", "Iniciando validação pré-voo", {
       scheduleId: schedule.id,
       scheduleName: schedule.name,
       preflightHoursBefore: schedule.preflight_hours_before,
@@ -324,7 +324,7 @@ async function executePreflightForSchedule(
     // STEP 1: Get refresh_token from Supabase
     // ==========================================================================
     currentStep = "getting_refresh_token"
-    addLog(currentStep, "Obtendo refresh token do Supabase...")
+    addLog(currentStep, "Buscando token de autenticação...")
 
     const { data: tokenConfigs, error: tokenError } = await supabaseClient
       .from("app_config")
@@ -345,7 +345,7 @@ async function executePreflightForSchedule(
     }
 
     const currentRefreshToken = tokenConfig.value
-    addLog(currentStep, "Refresh token obtido do Supabase", {
+    addLog(currentStep, "Token de autenticação obtido", {
       tokenKey: tokenConfig.key,
       tokenLength: currentRefreshToken.length,
     })
@@ -354,7 +354,7 @@ async function executePreflightForSchedule(
     // STEP 2: Authenticate with SuperLogica API
     // ==========================================================================
     currentStep = "authenticating_superlogica"
-    addLog(currentStep, "Autenticando com a API da SuperLogica...")
+    addLog(currentStep, "Autenticando na API SuperLógica...")
 
     const clientId = Deno.env.get("SUPERLOGICA_CLIENT_ID")
     const sessionId = Deno.env.get("SUPERLOGICA_SESSION_ID")
@@ -383,7 +383,7 @@ async function executePreflightForSchedule(
       refresh_token_length: newRefreshToken.length,
     }
 
-    addLog(currentStep, "Autenticação bem-sucedida! Token validado.", {
+    addLog(currentStep, "Autenticação realizada com sucesso - token válido", {
       accessTokenLength: accessToken.length,
       refreshTokenLength: newRefreshToken.length,
     })
@@ -392,7 +392,7 @@ async function executePreflightForSchedule(
     // STEP 3: Update refresh_token in Supabase
     // ==========================================================================
     currentStep = "updating_refresh_token"
-    addLog(currentStep, "Atualizando refresh token no Supabase...")
+    addLog(currentStep, "Salvando novo token no banco...")
 
     const { error: updateError } = await supabaseClient
       .from("app_config")
@@ -406,7 +406,7 @@ async function executePreflightForSchedule(
       throw new Error(`Failed to update refresh token: ${updateError.message}`)
     }
 
-    addLog(currentStep, "Refresh token atualizado com sucesso!")
+    addLog(currentStep, "Novo token salvo com sucesso")
 
     // ==========================================================================
     // ENVIAR E-MAIL DE SUCESSO (se configurado)
@@ -436,8 +436,8 @@ async function executePreflightForSchedule(
       addLog(
         "sending_notification",
         emailSent
-          ? "E-mail de sucesso enviado"
-          : "E-mail não enviado (falha no envio)",
+          ? "E-mail de notificação enviado com sucesso"
+          : "Falha ao enviar e-mail",
         {
           email: notificationEmail,
           sent: emailSent,
@@ -450,8 +450,8 @@ async function executePreflightForSchedule(
       addLog(
         "sending_notification",
         !notificationEmail
-          ? "E-mail não configurado - notificação pulada"
-          : "Notificações de sucesso desabilitadas",
+          ? "E-mail não configurado - notificação ignorada"
+          : "Notificação de sucesso desabilitada",
         {
           configured: !!notificationEmail,
           enabled: notifyEnabled,
@@ -464,7 +464,7 @@ async function executePreflightForSchedule(
     // SUCCESS
     // ==========================================================================
     const duration = Date.now() - startTime
-    addLog("success", "Pre-flight concluído com sucesso! ✈️", { duration })
+    addLog("success", "Validação pré-voo concluída com sucesso!", { duration })
 
     // Atualizar last_preflight_at do schedule
     await supabaseClient

@@ -711,7 +711,7 @@ serve(async (req) => {
     isTestMode = payload.test === true
     isDryRun = payload.dryRun === true
 
-    addLog(currentStep, "Payload recebido", {
+    addLog(currentStep, "Requisição processada", {
       scheduleId,
       isTestMode,
       isDryRun,
@@ -739,7 +739,7 @@ serve(async (req) => {
         )
       }
 
-      addLog(currentStep, "Buscando detalhes do agendamento...", { scheduleId })
+      addLog(currentStep, "Carregando agendamento...", { scheduleId })
 
       const { data: scheduleData, error: scheduleError } = await supabaseClient
         .from("schedules")
@@ -756,7 +756,7 @@ serve(async (req) => {
       schedule = scheduleData
 
       if (!schedule.is_active) {
-        addLog(currentStep, "Schedule está inativo, pulando execução", {
+        addLog(currentStep, "Agendamento inativo - execução cancelada", {
           scheduleId,
         })
         return new Response(
@@ -779,7 +779,7 @@ serve(async (req) => {
         throw new Error("Time slot hour not found in schedule")
       }
 
-      addLog(currentStep, "Detalhes do agendamento obtidos", {
+      addLog(currentStep, "Agendamento carregado com sucesso", {
         scheduleName: schedule.name,
         reservationHour,
         timeSlotName: schedule.time_slots?.display_name,
@@ -790,7 +790,7 @@ serve(async (req) => {
     // STEP 2: Get refresh_token from Supabase (equivalent to SSM)
     // ==========================================================================
     currentStep = "getting_refresh_token"
-    addLog(currentStep, "Obtendo refresh token do Supabase...")
+    addLog(currentStep, "Buscando token de autenticação...")
 
     // Busca o token - pode estar com a chave 'auth_token' ou 'superlogica_refresh_token'
     const { data: tokenConfigs, error: tokenError } = await supabaseClient
@@ -812,7 +812,7 @@ serve(async (req) => {
     }
 
     const currentRefreshToken = tokenConfig.value
-    addLog(currentStep, "Refresh token obtido do Supabase", {
+    addLog(currentStep, "Token de autenticação obtido", {
       tokenKey: tokenConfig.key,
       tokenLength: currentRefreshToken.length,
       tokenPreview: currentRefreshToken.substring(0, 10) + "...",
@@ -822,7 +822,7 @@ serve(async (req) => {
     // STEP 3: Authenticate with SuperLogica API
     // ==========================================================================
     currentStep = "authenticating_superlogica"
-    addLog(currentStep, "Autenticando com a API da SuperLogica...")
+    addLog(currentStep, "Autenticando na API SuperLógica...")
 
     const clientId = Deno.env.get("SUPERLOGICA_CLIENT_ID")
     const sessionId = Deno.env.get("SUPERLOGICA_SESSION_ID")
@@ -851,7 +851,7 @@ serve(async (req) => {
       refresh_token_length: newRefreshToken.length,
     }
 
-    addLog(currentStep, "Access token e refresh token obtidos", {
+    addLog(currentStep, "Autenticação realizada com sucesso", {
       accessTokenLength: accessToken.length,
       accessTokenPreview: accessToken.substring(0, 10) + "...",
       refreshTokenLength: newRefreshToken.length,
@@ -862,7 +862,7 @@ serve(async (req) => {
     // STEP 4: Update refresh_token in Supabase
     // ==========================================================================
     currentStep = "updating_refresh_token"
-    addLog(currentStep, "Atualizando refresh token no Supabase...")
+    addLog(currentStep, "Salvando novo token no banco de dados...")
 
     // Atualiza usando a mesma chave que foi encontrada
     const { error: updateError } = await supabaseClient
@@ -877,13 +877,13 @@ serve(async (req) => {
       throw new Error(`Failed to update refresh token: ${updateError.message}`)
     }
 
-    addLog(currentStep, "Refresh token atualizado no Supabase")
+    addLog(currentStep, "Novo token salvo com sucesso")
 
     // ==========================================================================
     // STEP 4.5: Get unit_id and condo_id from app_config
     // ==========================================================================
     currentStep = "getting_api_config"
-    addLog(currentStep, "Obtendo configurações da API...")
+    addLog(currentStep, "Carregando configurações da API...")
 
     const { data: apiConfigs, error: apiConfigError } = await supabaseClient
       .from("app_config")
@@ -903,7 +903,7 @@ serve(async (req) => {
       )
     }
 
-    addLog(currentStep, "Configurações da API obtidas", {
+    addLog(currentStep, "Configurações carregadas", {
       unitId,
       condoId,
     })
@@ -919,8 +919,8 @@ serve(async (req) => {
     addLog(
       currentStep,
       isDryRun
-        ? "🔍 [DRY RUN] Simulando reserva..."
-        : "Iniciando reserva na API do Speed...",
+        ? "[SIMULAÇÃO] Simulando envio de reserva..."
+        : "Enviando reserva para API...",
       {
         reservationDate,
         reservationHour,
@@ -949,7 +949,7 @@ serve(async (req) => {
       }
       addLog(
         currentStep,
-        "🔍 [DRY RUN] Reserva simulada - API NÃO foi chamada",
+        "[SIMULAÇÃO] Reserva simulada - API não foi chamada",
         {
           wouldSendTo: "Speed API",
           wouldSendDate: reservationDate,
@@ -1000,7 +1000,7 @@ serve(async (req) => {
     const { status, msg, data: responseData } = reservationResponse
     const reservationResult = responseData?.[0]
 
-    addLog(currentStep, "Resposta da reserva recebida", {
+    addLog(currentStep, "Processando resposta da API", {
       status,
       msg,
       reservationResult,
@@ -1017,7 +1017,7 @@ serve(async (req) => {
         reservationResult?.msg || msg || "Erro ao reservar quadra"
 
       // Log detalhado do erro ANTES de lançar exceção
-      addLog(currentStep, `❌ ${errorMsg}`, {
+      addLog(currentStep, `Erro na reserva: ${errorMsg}`, {
         httpStatus: status,
         httpMessage: msg,
         itemStatus: reservationResult?.status,
@@ -1047,8 +1047,8 @@ serve(async (req) => {
     const duration = Date.now() - startTime
 
     const successMessage = isDryRun
-      ? "🔍 [DRY RUN] Simulação concluída com sucesso - nenhuma reserva real foi feita"
-      : "Reserva realizada com sucesso 🥎"
+      ? "[SIMULAÇÃO] Simulação concluída com sucesso"
+      : "Reserva realizada com sucesso!"
 
     addLog("success", successMessage, {
       status,

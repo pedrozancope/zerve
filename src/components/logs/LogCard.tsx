@@ -1,16 +1,12 @@
 import { useState } from "react"
-import { ChevronRight } from "lucide-react"
-import { FlowStepsLog } from "./FlowStepsLog"
-import { ApiRequestResponse } from "./ApiRequestResponse"
+import { ChevronRight, ChevronDown, Calendar } from "lucide-react"
+import { LogDetailsPanel } from "./LogDetailsPanel"
 import type { ExecutionLog } from "@/types"
-import type { ExecutionResult } from "@/lib/flowSteps"
 import { cn } from "@/lib/utils"
 
 interface LogCardProps {
   log: ExecutionLog
   defaultExpanded?: boolean
-  viewMode?: "flow" | "simple"
-  showApiDetails?: boolean
 }
 
 // Configuração visual por tipo de execução
@@ -37,45 +33,10 @@ const executionTypeConfig = {
   },
 }
 
-export function LogCard({
-  log,
-  defaultExpanded = false,
-  viewMode = "flow",
-  showApiDetails = true,
-}: LogCardProps) {
+export function LogCard({ log, defaultExpanded = false }: LogCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   const typeConfig = executionTypeConfig[log.executionType]
-
-  // Converter ExecutionLog para ExecutionResult para o FlowStepsLog
-  const convertToExecutionResult = (): ExecutionResult => {
-    const responsePayload = log.responsePayload as any
-
-    return {
-      success: log.status === "success",
-      error:
-        log.status === "error"
-          ? responsePayload?.error || log.message
-          : undefined,
-      step: log.errorStep,
-      duration: log.durationMs,
-      data: log.responsePayload,
-      details: responsePayload?.details,
-      log: log.executionLog,
-      responsePayload: log.responsePayload,
-    }
-  }
-
-  const hasStructuredLog = log.executionLog && log.executionLog.length > 0
-
-  const hasApiCalls =
-    showApiDetails &&
-    (log.requestPayload || log.responsePayload) &&
-    (log.executionType === "reservation" ||
-      log.executionType === "test" ||
-      log.executionType === "auto_cancel" ||
-      log.executionType === "test_token" ||
-      log.executionType === "preflight")
 
   // Nome do card
   const getTitle = () => {
@@ -104,7 +65,6 @@ export function LogCard({
   }
 
   // Verificar se é modo teste (dry-run)
-  // Usa o campo isTest do log OU detecta pela mensagem como fallback
   const isDryRun =
     log.isTest === true ||
     log.message?.toLowerCase().includes("dry run") ||
@@ -116,20 +76,20 @@ export function LogCard({
       case "success":
         return {
           label: "Sucesso",
-          className:
-            "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-950/50",
+          dotClass: "bg-green-500",
+          textClass: "text-green-700 dark:text-green-400",
         }
       case "error":
         return {
           label: "Erro",
-          className:
-            "text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950/50",
+          dotClass: "bg-red-500",
+          textClass: "text-red-700 dark:text-red-400",
         }
       case "pending":
         return {
           label: "Pendente",
-          className:
-            "text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/50",
+          dotClass: "bg-yellow-500",
+          textClass: "text-yellow-700 dark:text-yellow-400",
         }
     }
   }
@@ -143,81 +103,72 @@ export function LogCard({
         className="px-6 py-5 cursor-pointer hover:bg-muted/40 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        {/* Grid layout para informações */}
-        <div className="grid grid-cols-12 gap-4 items-start">
-          {/* Coluna 1: Tipo + Nome (span 4) */}
-          <div className="col-span-12 sm:col-span-5 lg:col-span-4">
-            <div className="flex items-center gap-3">
-              {/* Tipo indicator dot */}
-              <div
-                className={cn(
-                  "w-2 h-2 rounded-full flex-shrink-0",
-                  typeConfig.dotClass
-                )}
-              />
+        {/* Grid layout para informações - Inspirado no Strapi Cloud */}
+        <div className="grid grid-cols-12 gap-x-6 gap-y-3 items-start">
+          {/* Coluna 1: Status + Nome */}
+          <div className="col-span-12 lg:col-span-4">
+            <div className="flex items-start gap-3">
+              {/* Status dot */}
+              <div className="pt-1">
+                <div
+                  className={cn(
+                    "w-2.5 h-2.5 rounded-full",
+                    statusInfo.dotClass
+                  )}
+                />
+              </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 {/* Tipo label */}
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
                   {typeConfig.label}
                 </p>
                 {/* Nome */}
-                <h3 className="font-semibold text-sm mt-0.5 truncate">
-                  {getTitle()}
-                </h3>
+                <h3 className="font-semibold text-sm truncate">{getTitle()}</h3>
               </div>
             </div>
           </div>
 
-          {/* Coluna 2: Executado em (span 2) */}
-          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          {/* Coluna 2: Executado em */}
+          <div className="col-span-6 sm:col-span-4 lg:col-span-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
               Executado
             </p>
-            <p className="text-sm mt-0.5">
+            <p className="text-sm">
               <span className="font-medium">{formatDate(log.executedAt)}</span>
-              <span className="text-muted-foreground ml-1">
+              <span className="text-muted-foreground ml-1.5">
                 {formatTime(log.executedAt)}
               </span>
             </p>
           </div>
 
-          {/* Coluna 3: Data Reserva (span 2) - só para reservas */}
-          <div className="col-span-6 sm:col-span-2 lg:col-span-2">
-            {log.reservationDate ? (
-              <>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Reserva
-                </p>
-                <p className="text-sm mt-0.5 font-medium">
-                  {formatDate(log.reservationDate)}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Duração
-                </p>
-                <p className="text-sm mt-0.5">
-                  {log.durationMs ? `${log.durationMs}ms` : "-"}
-                </p>
-              </>
-            )}
+          {/* Coluna 3: Duração */}
+          <div className="col-span-6 sm:col-span-4 lg:col-span-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
+              Duração
+            </p>
+            <p className="text-sm">
+              {log.durationMs ? (
+                <span className="font-medium">{log.durationMs}ms</span>
+              ) : (
+                <span className="text-muted-foreground">-</span>
+              )}
+            </p>
           </div>
 
-          {/* Coluna 4: Modo (span 2) */}
-          <div className="col-span-6 sm:col-span-2 lg:col-span-2">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          {/* Coluna 4: Modo */}
+          <div className="col-span-6 sm:col-span-4 lg:col-span-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
               Modo
             </p>
-            <p className="text-sm mt-0.5">
+            <p className="text-sm">
               {isDryRun ? (
-                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                   Simulação
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                <span className="inline-flex items-center gap-1.5 text-foreground">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                   Produção
                 </span>
@@ -225,153 +176,45 @@ export function LogCard({
             </p>
           </div>
 
-          {/* Coluna 5: Status + Expand (span 2) */}
-          <div className="col-span-6 sm:col-span-12 lg:col-span-2 flex items-center justify-between sm:justify-end gap-3">
-            {/* Status badge */}
-            <span
-              className={cn(
-                "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
-                statusInfo.className
-              )}
-            >
+          {/* Coluna 5: Status + Expand */}
+          <div className="col-span-6 sm:col-span-12 lg:col-span-2 flex items-center justify-between lg:justify-end gap-3">
+            {/* Status text */}
+            <span className={cn("text-sm font-medium", statusInfo.textClass)}>
               {statusInfo.label}
             </span>
 
             {/* Expand icon */}
-            <ChevronRight
-              className={cn(
-                "h-5 w-5 text-muted-foreground transition-transform flex-shrink-0",
-                isExpanded && "rotate-90"
+            <div className="p-1 rounded hover:bg-muted transition-colors">
+              {isExpanded ? (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               )}
-            />
+            </div>
           </div>
         </div>
 
-        {/* Mensagem - linha separada */}
+        {/* Mensagem - linha separada com borda */}
         {log.message && (
-          <div className="mt-3 ml-5 pl-3 border-l-2 border-muted">
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {log.message}
-            </p>
+          <div className="mt-4 pl-5 ml-0.5 border-l-2 border-muted">
+            <p className="text-sm text-muted-foreground">{log.message}</p>
+          </div>
+        )}
+
+        {/* Data da reserva quando existir */}
+        {log.reservationDate && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground pl-6">
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Reserva para:</span>
+            <span className="font-medium text-foreground">
+              {formatDate(log.reservationDate)}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Expanded content */}
-      {isExpanded && (
-        <div className="border-t bg-muted/30">
-          <div className="px-6 py-5 space-y-4">
-            {/* Info extra quando expandido */}
-            {log.reservationDate && log.durationMs && (
-              <div className="flex items-center gap-6 text-sm text-muted-foreground pb-4 border-b">
-                <span>
-                  <span className="font-medium text-foreground">
-                    {log.durationMs}ms
-                  </span>{" "}
-                  de duração
-                </span>
-              </div>
-            )}
-
-            {/* Modo de visualização de fluxo (se houver log estruturado) */}
-            {viewMode === "flow" && hasStructuredLog ? (
-              <FlowStepsLog
-                result={convertToExecutionResult()}
-                isTest={log.isTest}
-                executionType={log.executionType}
-                title="Etapas da Execução"
-                subtitle={
-                  log.status === "success"
-                    ? "Todas as etapas concluídas com sucesso"
-                    : log.status === "error"
-                    ? `Falha na execução`
-                    : undefined
-                }
-              />
-            ) : (
-              /* Modo de visualização simples (payloads brutos) */
-              <>
-                {log.requestPayload && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
-                      Request Payload
-                    </h4>
-                    <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-48">
-                      {JSON.stringify(log.requestPayload, null, 2)}
-                    </pre>
-                  </div>
-                )}
-                {log.responsePayload && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full ${
-                          log.status === "success"
-                            ? "bg-green-500"
-                            : "bg-red-500"
-                        }`}
-                      ></span>
-                      Response Payload
-                    </h4>
-                    <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-48">
-                      {JSON.stringify(log.responsePayload, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Mostrar detalhes de API externa quando não houver log estruturado */}
-            {hasApiCalls && !hasStructuredLog && (
-              <ApiRequestResponse
-                request={log.requestPayload}
-                response={log.responsePayload}
-                title="Detalhes da API Externa"
-              />
-            )}
-
-            {/* Mostrar mensagem informativa se não houver log estruturado em modo flow */}
-            {viewMode === "flow" && !hasStructuredLog && (
-              <div className="p-4 bg-muted/50 rounded-lg border border-dashed">
-                <p className="text-sm text-muted-foreground text-center">
-                  ℹ️ Este log não possui informações de etapas estruturadas.
-                  <br />
-                  <span className="text-xs">
-                    Logs mais antigos podem não ter esse nível de detalhamento.
-                  </span>
-                </p>
-
-                {!hasApiCalls &&
-                  (log.requestPayload || log.responsePayload) && (
-                    <div className="mt-4 space-y-3">
-                      {log.requestPayload && (
-                        <details className="text-xs">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                            Ver Request Payload
-                          </summary>
-                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-32">
-                            {JSON.stringify(log.requestPayload, null, 2)}
-                          </pre>
-                        </details>
-                      )}
-                      {log.responsePayload && (
-                        <details className="text-xs">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                            Ver Response Payload
-                          </summary>
-                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-32">
-                            {JSON.stringify(log.responsePayload, null, 2)}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Expanded content - Panel de detalhes */}
+      {isExpanded && <LogDetailsPanel log={log} />}
     </div>
   )
 }

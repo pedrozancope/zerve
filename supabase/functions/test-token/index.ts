@@ -262,7 +262,7 @@ serve(async (req) => {
       {
         step: "get_token",
         status: "running",
-        message: "Buscando refresh token...",
+        message: "Buscando token de autenticação...",
       },
     ]
 
@@ -309,7 +309,7 @@ serve(async (req) => {
 
     // Complete step 1
     flowSteps[0].status = "completed"
-    flowSteps[0].message = "Refresh token obtido com sucesso"
+    flowSteps[0].message = "Token de autenticação obtido do banco de dados"
 
     // ==========================================================================
     // STEP 2: Authenticate with SuperLogica API
@@ -319,7 +319,7 @@ serve(async (req) => {
     flowSteps.push({
       step: "authenticate",
       status: "running",
-      message: "Autenticando com SuperLógica...",
+      message: "Autenticando na API SuperLógica...",
     })
 
     if (executionLogId) {
@@ -354,7 +354,7 @@ serve(async (req) => {
 
     // Complete step 2 with API request and response details
     flowSteps[1].status = "completed"
-    flowSteps[1].message = "Autenticação bem-sucedida"
+    flowSteps[1].message = "Autenticação realizada com sucesso"
     flowSteps[1].request = {
       method: "POST",
       url: "https://api.superlogica.com/spaces/v1/auth/token",
@@ -379,7 +379,7 @@ serve(async (req) => {
     flowSteps.push({
       step: "list_reservations",
       status: "running",
-      message: "Listando reservas...",
+      message: "Testando API listando reservas...",
     })
 
     if (executionLogId) {
@@ -449,7 +449,7 @@ serve(async (req) => {
     flowSteps.push({
       step: "update_token",
       status: "running",
-      message: "Atualizando refresh token...",
+      message: "Salvando novo token no banco...",
     })
 
     if (executionLogId) {
@@ -469,7 +469,7 @@ serve(async (req) => {
 
     // Complete step 4
     flowSteps[3].status = "completed"
-    flowSteps[3].message = "Token atualizado com sucesso"
+    flowSteps[3].message = "Novo token salvo no banco de dados"
 
     // ==========================================================================
     // STEP 5: Success
@@ -477,7 +477,7 @@ serve(async (req) => {
     flowSteps.push({
       step: "success",
       status: "completed" as const,
-      message: "Teste concluído com sucesso!",
+      message: "Teste de token concluído com sucesso!",
     })
 
     const duration = Date.now() - startTime

@@ -4,8 +4,6 @@ import {
   Clock,
   Filter,
   RefreshCw,
-  Workflow,
-  List,
   TrendingUp,
   CheckCircle2,
   XCircle,
@@ -42,7 +40,6 @@ export default function Logs() {
   const [scheduleFilter, setScheduleFilter] = useState<string>(
     scheduleIdFromUrl || "all"
   )
-  const [viewMode, setViewMode] = useState<"flow" | "simple">("flow")
 
   // Atualizar filtro quando mudar URL
   useEffect(() => {
@@ -243,33 +240,6 @@ export default function Logs() {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                Visualização:
-              </span>
-              <div className="flex items-center border rounded-lg overflow-hidden shadow-sm">
-                <Button
-                  variant={viewMode === "flow" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none gap-1.5"
-                  onClick={() => setViewMode("flow")}
-                >
-                  <Workflow className="h-4 w-4" />
-                  <span className="hidden sm:inline">Fluxo</span>
-                </Button>
-                <Button
-                  variant={viewMode === "simple" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none gap-1.5"
-                  onClick={() => setViewMode("simple")}
-                >
-                  <List className="h-4 w-4" />
-                  <span className="hidden sm:inline">Simples</span>
-                </Button>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -305,12 +275,7 @@ export default function Logs() {
 
           <div className="space-y-4">
             {logs.map((log) => (
-              <LogCard
-                key={log.id}
-                log={log}
-                viewMode={viewMode}
-                showApiDetails={true}
-              />
+              <LogCard key={log.id} log={log} />
             ))}
           </div>
         </div>

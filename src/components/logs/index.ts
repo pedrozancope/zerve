@@ -1,5 +1,6 @@
 export { FlowStepsLog } from "./FlowStepsLog"
 export { LogCard } from "./LogCard"
+export { LogDetailsPanel } from "./LogDetailsPanel"
 export {
   ExecutionTypeBadge,
   OperationTypeBadge,
