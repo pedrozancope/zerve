@@ -13,6 +13,9 @@ import {
   Repeat,
   CalendarClock,
   Plane,
+  Power,
+  ChevronRight,
+  MoreVertical,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -27,6 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { DAY_NAMES_PT } from "@/lib/cron"
 import { TIME_SLOTS } from "@/lib/constants"
 import {
@@ -245,17 +255,18 @@ export default function Schedules() {
               Agendamentos
             </h1>
             <p className="text-muted-foreground">
-              Gerencie seus triggers de reserva
+              Gerencie suas automações de reserva
             </p>
           </div>
           <Button disabled>
             <Plus className="h-4 w-4 mr-2" />
-            Novo
+            Novo Agendamento
           </Button>
         </div>
-        <div className="space-y-4">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Skeleton className="h-48 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
         </div>
       </div>
     )
@@ -263,86 +274,374 @@ export default function Schedules() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             Agendamentos
           </h1>
           <p className="text-muted-foreground">
-            Gerencie seus triggers de reserva
+            Gerencie suas automações de reserva
           </p>
         </div>
         <Link to="/schedules/new">
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo</span>
+            <span className="hidden sm:inline">Novo Agendamento</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
         </Link>
       </div>
 
       {!schedules || schedules.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">
-              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-medium mb-1">
+        <Card className="border-dashed">
+          <CardContent className="py-16">
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Calendar className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">
                 Nenhum agendamento criado
               </h3>
-              <p className="text-sm mb-4">
+              <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
                 Crie seu primeiro agendamento para começar a reservar
-                automaticamente.
+                automaticamente suas quadras favoritas.
               </p>
               <Link to="/schedules/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Agendamento
+                <Button size="lg" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Criar Primeiro Agendamento
                 </Button>
               </Link>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {schedules
-            .sort((a, b) => {
-              // Ativos primeiro, inativos depois
-              if (a.isActive === b.isActive) return 0
-              return a.isActive ? -1 : 1
-            })
-            .map((schedule) => {
-              const nextReservations = getNextReservationDates(
-                schedule.reservationDayOfWeek,
-                3
-              )
-              const nextTrigger = getNextTriggerDate(schedule)
+        <>
+          {/* Stats Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950 dark:to-green-900/50 border-green-200 dark:border-green-800">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-500/10">
+                    <Power className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                      {schedules.filter((s) => s.isActive).length}
+                    </p>
+                    <p className="text-xs text-green-600/80 dark:text-green-400/80">
+                      Ativos
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-              return (
-                <Card
-                  key={schedule.id}
-                  className={!schedule.isActive ? "opacity-50" : ""}
-                >
-                  <CardContent className="p-6">
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-lg">
-                          {schedule.name}
-                        </h3>
-                        {schedule.isActive && (
-                          <Badge variant="success">Ativo</Badge>
-                        )}
-                        {schedule.preflightEnabled && (
-                          <Badge
-                            variant="secondary"
-                            className="gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300"
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950 dark:to-blue-900/50 border-blue-200 dark:border-blue-800">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/10">
+                    <Repeat className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                      {
+                        schedules.filter(
+                          (s) => s.triggerMode === "reservation_date"
+                        ).length
+                      }
+                    </p>
+                    <p className="text-xs text-blue-600/80 dark:text-blue-400/80">
+                      Recorrentes
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950 dark:to-purple-900/50 border-purple-200 dark:border-purple-800">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/10">
+                    <CalendarClock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                      {
+                        schedules.filter(
+                          (s) => s.triggerMode === "trigger_date"
+                        ).length
+                      }
+                    </p>
+                    <p className="text-xs text-purple-600/80 dark:text-purple-400/80">
+                      Data Específica
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950 dark:to-sky-900/50 border-sky-200 dark:border-sky-800">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-sky-500/10">
+                    <Plane className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">
+                      {schedules.filter((s) => s.preflightEnabled).length}
+                    </p>
+                    <p className="text-xs text-sky-600/80 dark:text-sky-400/80">
+                      Com Pre-flight
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Schedule Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {schedules
+              .sort((a, b) => {
+                // Ativos primeiro, inativos depois
+                if (a.isActive === b.isActive) return 0
+                return a.isActive ? -1 : 1
+              })
+              .map((schedule) => {
+                const nextReservations = getNextReservationDates(
+                  schedule.reservationDayOfWeek,
+                  3
+                )
+                const nextTrigger = getNextTriggerDate(schedule)
+
+                return (
+                  <Card
+                    key={schedule.id}
+                    className={`overflow-hidden transition-all duration-200 hover:shadow-md ${
+                      !schedule.isActive ? "opacity-60" : ""
+                    }`}
+                  >
+                    {/* Card Header with gradient */}
+                    <div
+                      className={`px-5 py-4 border-b ${
+                        schedule.isActive
+                          ? "bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5"
+                          : "bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`p-2 rounded-lg ${
+                              schedule.isActive ? "bg-primary/10" : "bg-muted"
+                            }`}
                           >
-                            <Plane className="h-3 w-3" />
-                            Pre-flight
-                          </Badge>
-                        )}
+                            <Target
+                              className={`h-4 w-4 ${
+                                schedule.isActive
+                                  ? "text-primary"
+                                  : "text-muted-foreground"
+                              }`}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold truncate">
+                              {schedule.name}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {schedule.isActive ? (
+                                <Badge
+                                  variant="success"
+                                  className="text-xs px-1.5 py-0"
+                                >
+                                  Ativo
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs px-1.5 py-0"
+                                >
+                                  Inativo
+                                </Badge>
+                              )}
+                              {schedule.preflightEnabled && (
+                                <Badge
+                                  variant="secondary"
+                                  className="gap-1 text-xs px-1.5 py-0 bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300"
+                                >
+                                  <Plane className="h-2.5 w-2.5" />
+                                  Pre-flight
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <Switch
+                            checked={schedule.isActive}
+                            onCheckedChange={() =>
+                              handleToggle(schedule.id, schedule.isActive)
+                            }
+                            disabled={toggleSchedule.isPending}
+                          />
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleDryRunTest(schedule.id, schedule.name)
+                                }
+                                disabled={testingScheduleId === schedule.id}
+                              >
+                                {testingScheduleId === schedule.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <PlayCircle className="h-4 w-4 mr-2" />
+                                )}
+                                Dry Run
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <Link to={`/schedules/${schedule.id}`}>
+                                <DropdownMenuItem>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                              </Link>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteClick(schedule.id)}
+                                disabled={deleteSchedule.isPending}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+
+                    <CardContent className="p-5 space-y-4">
+                      {/* Reservation Target - Hero Section */}
+                      <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-primary">
+                            {DAY_NAMES_PT[
+                              schedule.reservationDayOfWeek
+                            ].substring(0, 3)}
+                          </p>
+                          <p className="text-xs text-primary/70 uppercase tracking-wider">
+                            {DAY_NAMES_PT[schedule.reservationDayOfWeek].split(
+                              "-"
+                            )[1] || ""}
+                          </p>
+                        </div>
+                        <div className="h-12 w-px bg-primary/20" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">
+                            Horário
+                          </p>
+                          <p className="text-lg font-semibold">
+                            {schedule.timeSlot?.displayName ||
+                              getTimeSlotDisplay(schedule.timeSlotId)}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      {/* Info Row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Trigger Mode */}
+                        <div className="p-3 rounded-lg bg-muted/50">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                            {schedule.triggerMode === "trigger_date" ? (
+                              <CalendarClock className="h-3 w-3" />
+                            ) : (
+                              <Repeat className="h-3 w-3" />
+                            )}
+                            <span>Modo</span>
+                          </div>
+                          <p className="text-sm font-medium">
+                            {schedule.triggerMode === "trigger_date"
+                              ? "Data Específica"
+                              : getFrequencyLabel(schedule.frequency)}
+                          </p>
+                        </div>
+
+                        {/* Next Trigger */}
+                        <div className="p-3 rounded-lg bg-muted/50">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                            <Zap className="h-3 w-3" />
+                            <span>Próximo Disparo</span>
+                          </div>
+                          {nextTrigger ? (
+                            <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                              {formatDateTime(nextTrigger)}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {schedule.isActive ? "—" : "Inativo"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Next Reservations or Specific Date */}
+                      {schedule.triggerMode === "reservation_date" &&
+                        schedule.isActive && (
+                          <div className="pt-3 border-t">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                              <Calendar className="h-3 w-3" />
+                              <span>Próximas Reservas</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {nextReservations.map((date, i) => (
+                                <Badge
+                                  key={i}
+                                  variant="outline"
+                                  className="text-xs font-normal"
+                                >
+                                  {date.toLocaleDateString("pt-BR", {
+                                    weekday: "short",
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                  })}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {schedule.triggerMode === "trigger_date" &&
+                        schedule.triggerDatetime && (
+                          <div className="pt-3 border-t">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                              <Clock className="h-3 w-3" />
+                              <span>Disparo Programado</span>
+                            </div>
+                            <p className="text-sm font-medium">
+                              {new Date(
+                                schedule.triggerDatetime
+                              ).toLocaleString("pt-BR", {
+                                dateStyle: "full",
+                                timeStyle: "short",
+                              })}
+                            </p>
+                          </div>
+                        )}
+
+                      {/* Quick Actions */}
+                      <div className="pt-3 border-t flex items-center justify-between">
                         <Button
                           variant="outline"
                           size="sm"
@@ -350,153 +649,28 @@ export default function Schedules() {
                             handleDryRunTest(schedule.id, schedule.name)
                           }
                           disabled={testingScheduleId === schedule.id}
-                          className="gap-1"
-                          title="Testar agendamento sem fazer reserva real"
+                          className="gap-1.5"
                         >
                           {testingScheduleId === schedule.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <PlayCircle className="h-4 w-4" />
+                            <PlayCircle className="h-3.5 w-3.5" />
                           )}
-                          <span className="hidden sm:inline">Dry Run</span>
+                          Testar
                         </Button>
-                        <Switch
-                          checked={schedule.isActive}
-                          onCheckedChange={() =>
-                            handleToggle(schedule.id, schedule.isActive)
-                          }
-                          disabled={toggleSchedule.isPending}
-                        />
                         <Link to={`/schedules/${schedule.id}`}>
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
+                          <Button variant="ghost" size="sm" className="gap-1.5">
+                            Editar
+                            <ChevronRight className="h-3.5 w-3.5" />
                           </Button>
                         </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteClick(schedule.id)}
-                          disabled={deleteSchedule.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
                       </div>
-                    </div>
-
-                    {/* Destaque: Reserva */}
-                    <div className="mb-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
-                      <div className="flex items-center gap-2 text-xs text-primary font-semibold mb-2">
-                        <Target className="h-4 w-4" />
-                        <span>RESERVA CONFIGURADA</span>
-                      </div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-primary">
-                          {DAY_NAMES_PT[schedule.reservationDayOfWeek]}
-                        </span>
-                        <span className="text-lg text-muted-foreground">•</span>
-                        <span className="text-xl font-semibold">
-                          {schedule.timeSlot?.displayName ||
-                            getTimeSlotDisplay(schedule.timeSlotId)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Info Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      {/* Frequência */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                          <Repeat className="h-3.5 w-3.5" />
-                          <span>FREQUÊNCIA</span>
-                        </div>
-                        <p className="text-sm font-medium">
-                          {getFrequencyLabel(schedule.frequency)}
-                        </p>
-                      </div>
-
-                      {/* Próximo Disparo */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                          <Zap className="h-3.5 w-3.5" />
-                          <span>PRÓXIMO DISPARO</span>
-                        </div>
-                        {nextTrigger ? (
-                          <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {formatDateTime(nextTrigger)}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            {schedule.isActive
-                              ? "Sem próximo disparo"
-                              : "Inativo"}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Modo */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                          <CalendarClock className="h-3.5 w-3.5" />
-                          <span>MODO</span>
-                        </div>
-                        <p className="text-sm font-medium">
-                          {schedule.triggerMode === "trigger_date"
-                            ? "Data Específica"
-                            : "Recorrente"}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Próximas Reservas */}
-                    {schedule.triggerMode === "reservation_date" &&
-                      schedule.isActive && (
-                        <div className="pt-3 border-t">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-2">
-                            <Calendar className="h-3.5 w-3.5" />
-                            <span>PRÓXIMAS RESERVAS</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {nextReservations.map((date, i) => (
-                              <Badge
-                                key={i}
-                                variant="outline"
-                                className="text-xs"
-                              >
-                                {date.toLocaleDateString("pt-BR", {
-                                  weekday: "short",
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                })}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Data Específica para modo trigger_date */}
-                    {schedule.triggerMode === "trigger_date" &&
-                      schedule.triggerDatetime && (
-                        <div className="pt-3 border-t">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-2">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span>DISPARO PROGRAMADO</span>
-                          </div>
-                          <p className="text-sm">
-                            {new Date(schedule.triggerDatetime).toLocaleString(
-                              "pt-BR",
-                              {
-                                dateStyle: "full",
-                                timeStyle: "short",
-                              }
-                            )}
-                          </p>
-                        </div>
-                      )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-        </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+          </div>
+        </>
       )}
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
