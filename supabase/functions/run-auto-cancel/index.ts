@@ -8,6 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
 // =============================================================================
@@ -972,6 +973,56 @@ serve(async (req) => {
           reason: "Não há reservas confirmadas para a data de hoje",
         }
       )
+
+      // Opção B: sempre registrar um exemplo de cancelamento no DRY RUN
+      if (isDryRun) {
+        const cancelUrl =
+          "https://speedassessoria.superlogica.net/areadocondomino/atual/reservas/cancelar"
+
+        // Se houver alguma reserva retornada pela API (mesmo que não elegível para hoje), use-a como base
+        const sample = reservations[0]
+        const sampleReservationId =
+          sample?.id_reserva_res || "[EXEMPLO_ID_RESERVA]"
+        const sampleAreaId = sample?.id_area_are || "[EXEMPLO_ID_AREA]"
+        const sampleAreaName = sample?.st_nome_are || "Exemplo de Área"
+
+        addLog(
+          "cancelling_reservations",
+          "[SIMULAÇÃO] Exemplo de Cancelamento (simulado)",
+          {
+            example: true,
+            reservationId: sampleReservationId,
+            areaId: sampleAreaId,
+            areaName: sampleAreaName,
+            simulated: true,
+            reason: config.cancellation_reason,
+          }
+        )
+
+        // Registrar o payload real do request (sem disparar)
+        executionLog[executionLog.length - 1].request = {
+          method: "POST",
+          url: cancelUrl,
+          body: {
+            ID_RESERVA_RES: sampleReservationId,
+            ST_MOTIVOCANCELAMENTO_RES: config.cancellation_reason,
+            ID_AREA_ARE: sampleAreaId,
+          },
+        }
+
+        // Mockar um response semelhante ao real
+        executionLog[executionLog.length - 1].response = {
+          status: "200",
+          msg: "[DRY RUN] Exemplo de resposta de cancelamento",
+          multipleresponse: "true",
+          data: [
+            {
+              status: "200",
+              msg: "[DRY RUN] Cancelamento simulado (exemplo)",
+            },
+          ],
+        }
+      }
     } else {
       for (const reservation of todayReservations) {
         const reservationId = reservation.id_reserva_res
