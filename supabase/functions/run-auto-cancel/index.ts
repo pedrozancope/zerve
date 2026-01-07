@@ -1137,7 +1137,10 @@ serve(async (req) => {
         .update({ last_executed_at: new Date().toISOString() })
         .eq("id", config.id)
 
-      addLog("updating_config", "Configuração atualizada com data da execução")
+      addLog(
+        "updating_config",
+        "Registrando timestamp da última execução no banco"
+      )
     }
 
     // ==========================================================================

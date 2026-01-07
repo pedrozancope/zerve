@@ -318,7 +318,7 @@ export const STEP_NAMES: Record<string, string> = {
   loading_unit_condo_config: "Carregando Configuração de Unidade",
   validating_config: "Validando Configuração",
   getting_api_config: "Carregando Configurações da API",
-  updating_config: "Atualizando Configuração",
+  updating_config: "Registrando Última Execução",
 
   // Autenticação
   getting_auth_token: "Buscando Token de Autenticação",

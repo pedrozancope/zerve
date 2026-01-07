@@ -185,7 +185,7 @@ function StepItem({ step, isLast }: { step: LogEntry; isLast: boolean }) {
       filtering_today_reservations: "Identificando Reservas para Cancelar",
       cancelling_reservations: "Processando Cancelamentos",
       cancellation_summary: "Resumo dos Cancelamentos",
-      updating_config: "Atualizando Configuração",
+      updating_config: "Registrando Última Execução",
 
       // Logs e Notificações
       saving_execution_log: "Salvando Log de Execução",
