@@ -10,15 +10,16 @@ import {
   Mail,
   CalendarDays,
   AlertTriangle,
+  Clipboard,
+  ClipboardCheck,
+  ChevronDown,
+  ChevronUp,
+  Smartphone,
+  Info,
+  Save,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -26,6 +27,11 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   useConfigByKey,
   useUpsertConfig,
@@ -36,6 +42,8 @@ import { useTestToken } from "@/hooks/useTestToken"
 export default function Settings() {
   const [showToken, setShowToken] = useState(false)
   const [refreshToken, setRefreshToken] = useState("")
+  const [tokenError, setTokenError] = useState("")
+  const [copiedToken, setCopiedToken] = useState(false)
   const [notificationEmail, setNotificationEmail] = useState("")
   const [notifications, setNotifications] = useState({
     emailOnSuccess: true,
@@ -94,8 +102,60 @@ export default function Settings() {
     setMinDaysBetween(savedMinDays)
   }, [warningEnabled, savedMinDays])
 
+  // Função para processar e validar o token
+  const processToken = (value: string): string => {
+    // Remove espaços em branco (início, fim e meio)
+    return value.replace(/\s/g, "")
+  }
+
+  const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value
+    const processedValue = processToken(rawValue)
+
+    setRefreshToken(processedValue)
+
+    // Verificar se havia espaços
+    if (rawValue !== processedValue && rawValue.length > 0) {
+      setTokenError("Espaços foram removidos automaticamente")
+      setTimeout(() => setTokenError(""), 3000)
+    } else {
+      setTokenError("")
+    }
+  }
+
+  const handlePasteToken = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const processedToken = processToken(text)
+      setRefreshToken(processedToken)
+
+      if (text !== processedToken) {
+        toast.info("Token colado! Espaços removidos automaticamente.")
+      } else {
+        toast.success("Token colado!")
+      }
+    } catch (error) {
+      toast.error("Não foi possível acessar a área de transferência")
+    }
+  }
+
+  const handleCopyCurrentToken = async () => {
+    if (tokenConfig?.value) {
+      try {
+        await navigator.clipboard.writeText(tokenConfig.value)
+        setCopiedToken(true)
+        toast.success("Token copiado!")
+        setTimeout(() => setCopiedToken(false), 2000)
+      } catch (error) {
+        toast.error("Erro ao copiar token")
+      }
+    }
+  }
+
   const handleUpdateToken = async () => {
-    if (!refreshToken.trim()) {
+    const cleanToken = processToken(refreshToken)
+
+    if (!cleanToken) {
       toast.error("Digite o novo refresh token")
       return
     }
@@ -103,9 +163,10 @@ export default function Settings() {
     try {
       await upsertConfig.mutateAsync({
         key: "auth_token",
-        value: refreshToken,
+        value: cleanToken,
       })
       setRefreshToken("")
+      setTokenError("")
       toast.success("Token atualizado com sucesso!")
     } catch (error) {
       console.error(error)
@@ -215,6 +276,60 @@ export default function Settings() {
   const hasToken = !!tokenConfig?.value
   const tokenLastUpdated = tokenConfig?.updatedAt
 
+  // Componente de seção colapsável
+  const Section = ({
+    icon: Icon,
+    title,
+    description,
+    children,
+    defaultOpen = true,
+    badge,
+  }: {
+    icon: React.ElementType
+    title: string
+    description?: string
+    children: React.ReactNode
+    defaultOpen?: boolean
+    badge?: React.ReactNode
+  }) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen)
+
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <Card className="overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-medium">{title}</h3>
+                    {badge}
+                  </div>
+                  {description && (
+                    <p className="text-sm text-muted-foreground line-clamp-1">
+                      {description}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {isOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-5">{children}</CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -222,33 +337,42 @@ export default function Settings() {
         <p className="text-muted-foreground">Gerencie tokens e preferências</p>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Token de Autenticação
-            </CardTitle>
-            <CardDescription>
-              Gerencie o refresh_token usado para autenticação no sistema Speed
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
+      <div className="space-y-4">
+        {/* Token de Autenticação - Card Principal (Mobile-First) */}
+        <Section
+          icon={Key}
+          title="Token de Autenticação"
+          description="refresh_token para o sistema Speed"
+          badge={
+            <Badge
+              variant={hasToken ? "success" : "secondary"}
+              className="text-xs"
+            >
+              {hasToken ? "Configurado" : "Pendente"}
+            </Badge>
+          }
+        >
+          <div className="space-y-5">
+            {/* Status atual */}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-muted/50 to-muted border">
               <div className="flex items-center gap-3">
                 <div
-                  className={`p-2 rounded-full ${
-                    hasToken ? "bg-success/10" : "bg-destructive/10"
+                  className={`p-2.5 rounded-full ${
+                    hasToken
+                      ? "bg-green-100 dark:bg-green-900/50"
+                      : "bg-red-100 dark:bg-red-900/50"
                   }`}
                 >
                   {hasToken ? (
-                    <CheckCircle2 className="h-5 w-5 text-success" />
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : (
-                    <Shield className="h-5 w-5 text-destructive" />
+                    <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
                   )}
                 </div>
-                <div>
-                  <p className="font-medium">Status do Token</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold">
+                    {hasToken ? "Token Ativo" : "Token Não Configurado"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {tokenLastUpdated
                       ? `Atualizado em ${new Date(
@@ -259,68 +383,88 @@ export default function Settings() {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}`
-                      : "Nenhum token configurado"}
+                      : "Configure um token para começar"}
                   </p>
                 </div>
               </div>
-              <Badge variant={hasToken ? "success" : "outline"}>
-                {hasToken ? "Configurado" : "Pendente"}
-              </Badge>
             </div>
 
+            {/* Token atual (se existir) */}
             {hasToken && (
-              <div className="space-y-2">
-                <Label>Token Atual</Label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 p-3 rounded-md bg-muted overflow-hidden">
-                    <code className="text-sm font-mono break-all">
-                      {showToken
-                        ? tokenConfig?.value
-                        : maskToken(tokenConfig?.value || "")}
-                    </code>
-                  </div>
+              <div className="space-y-3">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Token Atual
+                </Label>
+                <div className="p-3 rounded-lg bg-muted/50 border">
+                  <code className="text-xs sm:text-sm font-mono break-all leading-relaxed block">
+                    {showToken
+                      ? tokenConfig?.value
+                      : maskToken(tokenConfig?.value || "")}
+                  </code>
+                </div>
+
+                {/* Botões de ação - Layout mobile-friendly */}
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant="outline"
-                    size="icon"
+                    size="sm"
                     onClick={() => setShowToken(!showToken)}
-                    className="shrink-0"
+                    className="gap-1.5"
                   >
                     {showToken ? (
                       <EyeOff className="h-4 w-4" />
                     ) : (
                       <Eye className="h-4 w-4" />
                     )}
+                    <span className="hidden sm:inline">
+                      {showToken ? "Ocultar" : "Ver"}
+                    </span>
                   </Button>
                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyCurrentToken}
+                    className="gap-1.5"
+                  >
+                    {copiedToken ? (
+                      <ClipboardCheck className="h-4 w-4" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {copiedToken ? "Copiado!" : "Copiar"}
+                    </span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={async () => {
                       try {
                         const result = await testToken.mutateAsync()
                         if (result.success) {
                           toast.success(
-                            `✅ Token válido! API está funcionando. ${
+                            `✅ Token válido! ${
                               result.data?.reservationsFound || 0
                             } reserva(s) encontrada(s).`
                           )
                         }
                       } catch (error: any) {
                         toast.error(
-                          `❌ Falha ao testar token: ${
-                            error?.message || "Erro desconhecido"
-                          }`
+                          `❌ Falha: ${error?.message || "Erro desconhecido"}`
                         )
                       }
                     }}
                     disabled={testToken.isPending}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 shrink-0"
+                    className="gap-1.5"
                   >
                     <CheckCircle2
                       className={`h-4 w-4 ${
                         testToken.isPending ? "animate-spin" : ""
                       }`}
                     />
-                    {testToken.isPending ? "Testando..." : "Testar"}
+                    <span className="hidden sm:inline">
+                      {testToken.isPending ? "..." : "Testar"}
+                    </span>
                   </Button>
                 </div>
               </div>
@@ -328,27 +472,72 @@ export default function Settings() {
 
             <Separator />
 
+            {/* Atualizar Token - Otimizado para Mobile */}
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="newToken">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">
                   {hasToken ? "Atualizar" : "Novo"} Refresh Token
                 </Label>
-                <Input
-                  id="newToken"
-                  type="password"
-                  placeholder="Cole o refresh_token aqui"
-                  value={refreshToken}
-                  onChange={(e) => setRefreshToken(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  O token será armazenado de forma segura e usado para
-                  autenticação nas reservas.
-                </p>
               </div>
+
+              {/* Campo de entrada otimizado para mobile */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    id="newToken"
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    placeholder="Cole o refresh_token aqui"
+                    value={refreshToken}
+                    onChange={handleTokenChange}
+                    className="pr-12 font-mono text-sm h-12"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePasteToken}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-10 px-3 text-muted-foreground hover:text-foreground"
+                  >
+                    <Clipboard className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {tokenError && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <Info className="h-3 w-3" />
+                    {tokenError}
+                  </p>
+                )}
+
+                {refreshToken && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {refreshToken.length} caracteres
+                    </span>
+                    {refreshToken.length > 20 && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs text-green-600"
+                      >
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Parece válido
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleUpdateToken}
-                disabled={upsertConfig.isPending || !refreshToken.trim()}
-                className="gap-2"
+                disabled={upsertConfig.isPending || !refreshToken}
+                className="w-full gap-2 h-11"
+                size="lg"
               >
                 <RefreshCw
                   className={`h-4 w-4 ${
@@ -359,34 +548,49 @@ export default function Settings() {
               </Button>
             </div>
 
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-              <h4 className="font-medium mb-2 flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Como obter o refresh_token?
-              </h4>
-              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                <li>Acesse o site do Speed no navegador</li>
-                <li>Abra as Ferramentas do Desenvolvedor (F12)</li>
-                <li>Vá na aba "Application" ou "Armazenamento"</li>
-                <li>Procure por "refresh_token" no LocalStorage</li>
-                <li>Copie o valor e cole aqui</li>
-              </ol>
-            </div>
-          </CardContent>
-        </Card>
+            {/* Instruções - Colapsável */}
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <button className="w-full p-3 rounded-lg bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-colors text-left">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">
+                        Como obter o refresh_token?
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-2 p-4 rounded-lg bg-muted/50 border text-sm space-y-2">
+                  <ol className="space-y-2 list-decimal list-inside text-muted-foreground">
+                    <li>Acesse o site do Speed no navegador</li>
+                    <li>Abra Ferramentas do Desenvolvedor (F12)</li>
+                    <li>Vá na aba "Application" ou "Armazenamento"</li>
+                    <li>Procure por "refresh_token" no LocalStorage</li>
+                    <li>Copie o valor e cole aqui</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground/70 pt-2 border-t">
+                    💡 No mobile, use o navegador Chrome ou Safari e acesse as
+                    ferramentas de desenvolvedor.
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        </Section>
+
         {/* Configurações da API */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Configurações da API
-            </CardTitle>
-            <CardDescription>
-              IDs da unidade e condomínio no sistema SuperLógica
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+        <Section
+          icon={Shield}
+          title="Configurações da API"
+          description="IDs da unidade e condomínio"
+          defaultOpen={false}
+        >
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="unitId">ID da Unidade</Label>
                 <Input
@@ -415,27 +619,26 @@ export default function Settings() {
             <Button
               onClick={handleSaveApiConfig}
               disabled={upsertConfig.isPending || !unitId || !condoId}
+              className="w-full sm:w-auto gap-2"
             >
               {upsertConfig.isPending ? (
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
-                <CheckCircle2 className="mr-2 h-4 w-4" />
+                <Save className="h-4 w-4" />
               )}
               Salvar Configurações
             </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Notificações
-            </CardTitle>
-            <CardDescription>
-              Configure quando deseja receber alertas por e-mail
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </div>
+        </Section>
+
+        {/* Notificações */}
+        <Section
+          icon={Bell}
+          title="Notificações"
+          description="Configure alertas por e-mail"
+          defaultOpen={false}
+        >
+          <div className="space-y-4">
             {/* Campo de E-mail */}
             <div className="space-y-2">
               <Label
@@ -445,7 +648,7 @@ export default function Settings() {
                 <Mail className="h-4 w-4" />
                 E-mail para Notificações
               </Label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   id="notificationEmail"
                   type="email"
@@ -458,6 +661,7 @@ export default function Settings() {
                   onClick={handleUpdateEmail}
                   disabled={upsertConfig.isPending || !notificationEmail.trim()}
                   variant="secondary"
+                  className="w-full sm:w-auto"
                 >
                   Salvar
                 </Button>
@@ -470,60 +674,58 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Reserva com Sucesso</p>
-                <p className="text-sm text-muted-foreground">
-                  Notificar quando a reserva for confirmada
-                </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Reserva com Sucesso</p>
+                  <p className="text-xs text-muted-foreground">
+                    Notificar quando a reserva for confirmada
+                  </p>
+                </div>
+                <Switch
+                  checked={notifications.emailOnSuccess}
+                  onCheckedChange={(checked) =>
+                    handleNotificationChange("notify_on_success", checked)
+                  }
+                  disabled={upsertConfig.isPending}
+                />
               </div>
-              <Switch
-                checked={notifications.emailOnSuccess}
-                onCheckedChange={(checked) =>
-                  handleNotificationChange("notify_on_success", checked)
-                }
-                disabled={upsertConfig.isPending}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Erro na Reserva</p>
-                <p className="text-sm text-muted-foreground">
-                  Notificar quando houver falha na reserva
-                </p>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Erro na Reserva</p>
+                  <p className="text-xs text-muted-foreground">
+                    Notificar quando houver falha na reserva
+                  </p>
+                </div>
+                <Switch
+                  checked={notifications.emailOnFailure}
+                  onCheckedChange={(checked) =>
+                    handleNotificationChange("notify_on_failure", checked)
+                  }
+                  disabled={upsertConfig.isPending}
+                />
               </div>
-              <Switch
-                checked={notifications.emailOnFailure}
-                onCheckedChange={(checked) =>
-                  handleNotificationChange("notify_on_failure", checked)
-                }
-                disabled={upsertConfig.isPending}
-              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
 
         {/* Configuração de Dias Consecutivos */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" />
-              Proteção de Reservas Consecutivas
-            </CardTitle>
-            <CardDescription>
-              Configure alertas para evitar reservas em dias consecutivos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
+        <Section
+          icon={CalendarDays}
+          title="Proteção de Reservas"
+          description="Alertas para dias consecutivos"
+          defaultOpen={false}
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <div className="text-sm">
-                  <p className="font-medium text-warning">
+                  <p className="font-medium text-amber-900 dark:text-amber-100">
                     Por que isso é importante?
                   </p>
-                  <p className="text-muted-foreground mt-1">
+                  <p className="text-amber-800/80 dark:text-amber-200/80 mt-1">
                     Reservas em dias consecutivos podem ser desnecessárias ou
                     até não permitidas. Ative este aviso para ser alertado antes
                     de criar agendamentos com datas muito próximas.
@@ -532,13 +734,13 @@ export default function Settings() {
               </div>
             </div>
 
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Aviso de Dias Consecutivos</p>
-                <p className="text-sm text-muted-foreground">
-                  Exibir confirmação ao criar reservas em dias muito próximos
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">
+                  Aviso de Dias Consecutivos
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Exibir confirmação ao criar reservas próximas
                 </p>
               </div>
               <Switch
@@ -549,40 +751,36 @@ export default function Settings() {
             </div>
 
             {consecutiveDaysWarning && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <Label htmlFor="minDays">Dias mínimos entre reservas</Label>
-                  <div className="flex items-center gap-4">
-                    <Input
-                      id="minDays"
-                      type="number"
-                      min={1}
-                      max={7}
-                      value={minDaysBetween}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value, 10)
-                        if (value >= 1 && value <= 7) {
-                          handleMinDaysBetweenChange(value)
-                        }
-                      }}
-                      className="w-24"
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {minDaysBetween === 1 ? "dia" : "dias"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Você será alertado se tentar criar uma reserva com menos de{" "}
-                    <strong>{minDaysBetween}</strong>{" "}
-                    {minDaysBetween === 1 ? "dia" : "dias"} de intervalo de uma
-                    reserva existente.
-                  </p>
+              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+                <Label htmlFor="minDays">Dias mínimos entre reservas</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="minDays"
+                    type="number"
+                    min={1}
+                    max={7}
+                    value={minDaysBetween}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10)
+                      if (value >= 1 && value <= 7) {
+                        handleMinDaysBetweenChange(value)
+                      }
+                    }}
+                    className="w-20"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {minDaysBetween === 1 ? "dia" : "dias"}
+                  </span>
                 </div>
-              </>
+                <p className="text-xs text-muted-foreground">
+                  Você será alertado se tentar criar uma reserva com menos de{" "}
+                  <strong>{minDaysBetween}</strong>{" "}
+                  {minDaysBetween === 1 ? "dia" : "dias"} de intervalo.
+                </p>
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
       </div>
     </div>
   )
