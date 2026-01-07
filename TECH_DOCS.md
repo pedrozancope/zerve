@@ -11,7 +11,7 @@
 > - Modificar estrutura do banco de dados
 
 **Data da última atualização:** 06/01/2026  
-**Versão:** 1.0.0
+**Versão:** 1.1.0 — Adicionada funcionalidade de listagem e cancelamento de reservas externas (novos hooks: `useExternalReservations`, `useCancelReservation`; nova página: `ExternalReservations.tsx`; reutilização de `test-token` para dados de reservas)
 
 ---
 
@@ -94,7 +94,9 @@ O sistema Speed Tennis (condomínio) libera quadras para reserva **10 dias antes
 
 **Fluxo 3: Auto-Cancel** — Job executa em horário configurado → Lista reservas do dia → Cancela via API → Notificação
 
-**Fluxo 4: Teste E2E** — Usuário aciona teste → Faz reserva HOJE (não +10 dias) → Retorna passo-a-passo em tempo real
+**Fluxo 4: Visualização e Cancelamento de Reservas** — Usuário acessa `/reservations` → Hook busca reservas via `test-token` → Exibe lista agrupada por data → Usuário pode cancelar diretamente via botão → Sistema chama API de cancelamento → Notificação enviada
+
+**Fluxo 5: Teste E2E** — Usuário aciona teste → Faz reserva HOJE (não +10 dias) → Retorna passo-a-passo em tempo real
 
 ---
 
@@ -513,13 +515,15 @@ zerve/
 │   │   ├── ui/                  # shadcn/ui components
 │   │   └── ProtectedRoute.tsx   # HOC para rotas autenticadas
 │   ├── hooks/
-│   │   ├── useAuth.ts           # Autenticação Supabase
-│   │   ├── useConfig.ts         # CRUD de app_config
-│   │   ├── useSchedules.ts      # CRUD de schedules
-│   │   ├── useLogs.ts           # Leitura de execution_logs
-│   │   ├── useReservations.ts   # Leitura de reservations
-│   │   ├── useAutoCancel.ts     # CRUD de auto_cancel_config
-│   │   └── useTestToken.ts      # Teste de token
+│   │   ├── useAuth.ts                  # Autenticação Supabase
+│   │   ├── useConfig.ts                # CRUD de app_config
+│   │   ├── useSchedules.ts             # CRUD de schedules
+│   │   ├── useLogs.ts                  # Leitura de execution_logs
+│   │   ├── useReservations.ts          # Leitura de reservations
+│   │   ├── useAutoCancel.ts            # CRUD de auto_cancel_config
+│   │   ├── useTestToken.ts             # Teste de token
+│   │   ├── useExternalReservations.ts  # Query de reservas externas (v1.1.0+)
+│   │   └── useCancelReservation.ts     # Mutation de cancelamento (v1.1.0+)
 │   ├── lib/
 │   │   ├── constants.ts         # TIME_SLOTS, NAV_ITEMS, enums
 │   │   ├── cron.ts              # Cálculo de cron/datas
@@ -532,6 +536,7 @@ zerve/
 │   │   ├── Logs.tsx
 │   │   ├── Settings.tsx
 │   │   ├── AutoCancel.tsx
+│   │   ├── ExternalReservations.tsx    # Listagem de reservas externas (v1.1.0+)
 │   │   ├── TestReservationE2E.tsx
 │   │   └── Login.tsx
 │   ├── services/
@@ -1169,6 +1174,108 @@ output: User | null
 
 ---
 
+#### 6.1.7 Hooks de Reservas Externas
+
+**Hook: `useExternalReservations`** (`src/hooks/useExternalReservations.ts`)
+
+**Responsabilidade:** Query hook que busca reservas externas do usuário via API SuperLógica (através da Edge Function `test-token`)
+
+**Funcionalidades:**
+
+- `useExternalReservations()` — listar todas as reservas do usuário na API SuperLógica
+  - Retorna array mapeado e ordenado por data
+  - Filtra e agrupa por data automaticamente
+  - Converte formatos (MM/DD/YYYY → DD/MM/YYYY)
+  - Extrai horários de slots de área
+
+**Regras Críticas:**
+
+- ✅ Chama `test-token` via fetch com Bearer token (não `supabase.functions.invoke()`)
+- ✅ Extrai dados de `data.data.apiResponse.data[0].data` (estrutura aninhada)
+- ✅ Converte data MM/DD/YYYY (API) → DD/MM/YYYY (frontend)
+- ✅ Regex para extrair horário de nomes de área (ex: "19 hr às 20 hr" → "19h - 20h")
+- ✅ Cache via TanStack Query com key `["external-reservations"]`
+- ✅ Invalidação automática após mutations
+
+**Utilitários Internos:**
+
+- `parseReservationDate(dateStr)` — parse MM/DD/YYYY para Date
+- `formatReservationDateDisplay(date)` — format para DD/MM/YYYY
+- `extractTimeFromAreaName(areaName)` — extrai "HH h - HH h" do nome
+- `isReservationToday(date)` — compara com hoje (BRT)
+- `getDayOfWeekName(date)` — retorna dia da semana em português
+- `mapReservationFromAPI(raw)` — transforma RawReservationItem em ExternalReservation
+
+**Tipos Envolvidos:**
+
+```typescript
+interface ExternalReservation {
+  id: string // ID da reserva na API
+  areaId: string // ID da área/quadra
+  areaName: string // Nome da área
+  time: string // "07h - 08h"
+  dateFormatted: string // "DD/MM/YYYY"
+  date: Date // JavaScript Date object
+  status: string // "Confirmada", "Cancelada"
+  createdAt: string // ISO string
+  isToday: boolean // Se é hoje
+}
+```
+
+**Onde é usado:**
+
+- `src/pages/ExternalReservations.tsx` — listagem e agrupamento de reservas
+
+---
+
+#### 6.1.8 Hooks de Cancelamento de Reservas
+
+**Hook: `useCancelReservation`** (`src/hooks/useCancelReservation.ts`)
+
+**Responsabilidade:** Mutation hook para cancelar uma reserva individual via API SuperLógica
+
+**Funcionalidades:**
+
+- `useCancelReservation()` — mutation hook para cancelar reserva
+  - Chamadas parâmetrizadas: `reservationId`, `areaId`, `reason`
+  - Automatic query invalidation de `external-reservations` após sucesso
+  - Toast notifications para feedback visual
+
+**Regras Críticas:**
+
+- ⚠️ **NOTA IMPORTANTE:** Requer suporte backend em `run-auto-cancel` para `action: "cancel_single"`
+- ✅ Chama `test-token` Edge Function com payload `{ action: "cancel_single", reservationId, areaId, reason }`
+- ✅ Usa Bearer token authentication (via `VITE_SUPABASE_ANON_KEY`)
+- ✅ Invalidação de query automática após sucesso/erro
+- ✅ Toast de sucesso/erro via Sonner
+
+**Comportamento:**
+
+```typescript
+const mutation = useCancelReservation()
+
+await mutation.mutateAsync({
+  reservationId: "12345",
+  areaId: "quadra-1",
+  reason: "Cancelamento pelo usuário",
+})
+// → Chama test-token com action: "cancel_single"
+// → Invalida ["external-reservations"]
+// → Mostra toast
+```
+
+**Estados:**
+
+- `isPending` — carregamento (botão fica disabled, icon muda para Loader2)
+- `isSuccess` — sucesso (toast verde, refetch automático)
+- `isError` — erro (toast vermelho, guarda erro em `error`)
+
+**Onde é usado:**
+
+- `src/pages/ExternalReservations.tsx` — botão Cancelar em cada card com AlertDialog de confirmação
+
+---
+
 ### 6.2 Lógica no Supabase (Edge Functions)
 
 #### 6.2.1 Edge Function: `execute-reservation` — PRINCIPAL
@@ -1226,18 +1333,57 @@ output: User | null
 
 ---
 
-#### 6.2.4 Edge Function: `test-token`
+#### 6.2.4 Edge Function: `test-token` — Reuso para Reservas Externas
 
 **Arquivo:** `supabase/functions/test-token/index.ts`
 
-**Responsabilidade:** Testar autenticação manualmente
+**Responsabilidade:** Testar autenticação manualmente + retornar lista de reservas externas (dual-purpose em v1.1.0+)
 
 **Fluxo:** Buscar token → Autenticar → Listar reservas (validação) → Salvar log → Retornar resultado
 
 **Regras Críticas:**
 
-- NÃO faz reserva/cancelamento
+- NÃO faz reserva/cancelamento via este endpoint
 - Apenas valida credenciais
+- ✅ **v1.1.0+:** Retorna `apiResponse` completa para downstream processing (hooks de reservas externas)
+
+**Return Structure v1.1.0+:**
+
+```typescript
+{
+  success: true,
+  message: "Token validation successful",
+  apiResponse: {
+    data: [
+      {
+        data: [ // Array de reservas
+          {
+            ID_RESERVA_RES: "12345",
+            ID_AREA_ARE: "quadra-1",
+            DS_AREA_ARE: "Quadra 1 - 07 hr às 08 hr",
+            DT_RESERVA_RES: "01/14/2026 00:00:00",
+            STATUS: "Confirmada",
+            // ... outros campos
+          },
+          // mais reservas...
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Reuso em v1.1.0:**
+
+- ✅ Hook `useExternalReservations` chama `test-token` via fetch
+- ✅ Extrai `apiResponse.data[0].data` para lista de reservas
+- ✅ Hook `useCancelReservation` chamará com `action: "cancel_single"` (suporte não implementado no backend ainda)
+
+**Onde é usado:**
+
+- `src/pages/Settings.tsx` — botão "Testar Token"
+- `src/pages/ExternalReservations.tsx` — via `useExternalReservations` hook (v1.1.0+)
+- `src/hooks/useCancelReservation.ts` — para cancelamento individual (v1.1.0+, backend pendente)
 
 ---
 
@@ -1253,6 +1399,106 @@ output: User | null
 4. **`run_automatic_cleanup()`** - Limpeza domingos 3h AM UTC
 
 **Padrão Comum:** Lêm `system_config`, verificam condições (janela de tempo, `last_executed_at`), chamam Edge Functions via pg_net
+
+---
+
+### 6.4 Página: `ExternalReservations` — Listagem e Cancelamento
+
+**Arquivo:** `src/pages/ExternalReservations.tsx`
+
+**Responsabilidade:** Exibir lista de reservas externas do usuário da API SuperLógica com opção de cancelar diretamente
+
+**Funcionalidades:**
+
+1. **Listagem de Reservas**
+
+   - Busca via `useExternalReservations` hook
+   - Agrupa por data (DD/MM/YYYY)
+   - Exibe dia da semana em português (Quarta, Quinta, etc.)
+   - Mostra horário extraído do nome da área
+   - Status da reserva (Confirmada, Cancelada)
+
+2. **Controles**
+
+   - Botão refresh (RefreshCw icon) para atualizar manualmente
+   - Card info mostrando total de reservas
+   - Loading skeleton durante fetch
+   - Erro alert com mensagem
+
+3. **Por Reserva**
+
+   - Card com informações: horário, data, local, status
+   - Badge de status com cores (verde=confirmada)
+   - Rodapé com ID e data de criação
+   - Botão Cancelar (Trash2 icon) com estado de loading
+
+4. **Diálogo de Confirmação (AlertDialog)**
+   - Mostra detalhes completos da reserva
+   - Descrição: "Tem certeza que deseja cancelar?"
+   - Botões: Cancelar, Confirmar
+   - Feedback visual durante cancelamento
+
+**Estrutura do Componente:**
+
+```typescript
+// ExternalReservations (componente principal)
+├── Refresh button
+├── Info card (total count)
+├── Loading state (skeleton cards)
+├── Error state (alert)
+├── Empty state (texto informativo)
+└── Reservations grid
+    └── Grouped by date
+        └── ReservationCard (subcomponente)
+            ├── Time badge
+            ├── Area info
+            ├── Status badge
+            ├── Cancel button
+            └── AlertDialog (confirmação)
+```
+
+**Hooks Utilizados:**
+
+- `useExternalReservations()` — Query para listar reservas
+- `useCancelReservation()` — Mutation para cancelar
+- `useQueryClient()` — Acesso ao cache para manual invalidation
+- React Query patterns: `isPending`, `error`, `data`
+
+**States e Handlers:**
+
+```typescript
+// Loading
+if (isLoading) → mostrar skeletons
+
+// Error
+if (error) → Alert com mensagem
+
+// Empty
+if (data?.length === 0) → mensagem "Nenhuma reserva encontrada"
+
+// Success
+Agrupar por data → Renderizar cards → AlertDialog ao clicar "Cancelar"
+```
+
+**Estilo e Responsividade:**
+
+- Responsive: flex col em mobile, grid em desktop
+- Dark mode suportado via Tailwind
+- Hover effects nos cards
+- Transitions suaves em UI
+
+**Regras de Negócio Implementadas:**
+
+- ✅ Mostra TODAS as reservas (ativas + canceladas)
+- ✅ Agrupa por data com formatação local
+- ✅ Extrai horário automaticamente do nome da área
+- ✅ Identifica se reserva é hoje (ícone diferente)
+- ⚠️ **Cancelamento:** Requer suporte backend para `action: "cancel_single"` em `run-auto-cancel` (não implementado ainda)
+
+**Onde é usado:**
+
+- Rota: `src/App.tsx` — `/reservations`
+- Navegação: `src/components/layout/Header.tsx` e `MobileNav.tsx` — item "Reservas" (List icon)
 
 ---
 
@@ -1393,7 +1639,28 @@ Envia notificações após execuções. `to` obtido de `app_config.notification_
 
 ---
 
-### 8.3 Tratamento de Erros
+### 8.3 Reutilização de Endpoints via `test-token` (v1.1.0+)
+
+**Novo em v1.1.0:** A Edge Function `test-token` agora serve **dual-purpose**:
+
+1. **Teste manual de autenticação** (original)
+
+   - Botão "Testar Token" em Settings
+   - Apenas valida credenciais
+
+2. **Fonte de dados para reservas externas** (novo em v1.1.0)
+   - Hook `useExternalReservations` chama `test-token` via fetch
+   - Extrai `apiResponse` contendo lista completa de reservas
+   - Página `ExternalReservations` renderiza dados
+   - Potencial para cancelamento (suporte backend pendente)
+
+**Vantagem:** Reutilização — não foi necessário criar nova Edge Function apenas para listar reservas. `test-token` já fazia a listagem como parte da validação.
+
+**Nota:** O cancelamento individual via `useCancelReservation` espera suporte para `action: "cancel_single"` em `run-auto-cancel`, que ainda não foi implementado no backend.
+
+---
+
+### 8.4 Tratamento de Erros
 
 **Padrão:** Try/catch, erro salvo em `execution_logs`, notificação enviada. Sem retry automático (job roda novamente na próxima janela).
 
@@ -1493,6 +1760,44 @@ Envia notificações após execuções. `to` obtido de `app_config.notification_
 **Decisão:** RLS em todas as tabelas, Edge Functions usam service_role_key
 
 **Trade-offs:** Segurança vs risco de vazamento de service_role_key
+
+---
+
+### 9.9 ADR-009: Reutilização de `test-token` para Reservas Externas (v1.1.0)
+
+**Contexto:**
+
+- Necessidade: Permitir usuários verem suas reservas da API SuperLógica
+- Opção A: Criar nova Edge Function `list-reservations`
+- Opção B: Reutilizar `test-token` que já lista reservas (como validação)
+
+**Decisão:**
+
+- ✅ **Reutilizar `test-token`** (Opção B)
+
+**Implementação:**
+
+- `test-token` agora retorna `apiResponse` completa (além de `success/message`)
+- Hook `useExternalReservations` chama `test-token` via fetch direto (não via `supabase.functions.invoke()`)
+- Página `ExternalReservations` renderiza dados extraídos
+- Cancelamento via `useCancelReservation` hook (backend pendente)
+
+**Razões:**
+
+- ✅ **DRY:** Evita duplicação de lógica de autenticação + listagem
+- ✅ **Simplicidade:** Uma função, dois propósitos (testa + lista)
+- ✅ **Menor surface area:** Menos código = menos bugs
+- ✅ **Rápido MVP:** Feature pronta sem nova função
+
+**Alternativa Descartada:**
+
+- ❌ `list-reservations` separado — duplicaria autenticação, listagem, logs, notificações
+
+**Consequências:**
+
+- ✅ Código limpo e reutilizável
+- ⚠️ `test-token` ficou com responsabilidade dupla (considerar split futuro se grow)
+- ⚠️ Cancelamento depende de suporte backend não implementado ainda (`action: "cancel_single"` em `run-auto-cancel`)
 
 ---
 
