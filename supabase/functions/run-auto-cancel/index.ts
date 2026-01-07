@@ -578,6 +578,7 @@ serve(async (req) => {
   let config: any = null
   let isDryRun = false
   let isAdHoc = false
+  let notificationEmail: string | null = null
 
   // Helper para adicionar logs estruturados
   const addLog = (
@@ -681,7 +682,7 @@ serve(async (req) => {
       const { data: configData, error: configError } = await supabaseClient
         .from("auto_cancel_config")
         .select("*")
-        .eq("enabled", true)
+        .eq("is_active", true)
         .limit(1)
         .single()
 
@@ -697,8 +698,6 @@ serve(async (req) => {
       isActive: config.is_active,
       triggerTime: config.trigger_time,
       reason: config.cancellation_reason,
-      unitId: config.unit_id,
-      condoId: config.condo_id,
     })
 
     // Verificar se está habilitado (apenas para execuções automáticas)
@@ -706,12 +705,48 @@ serve(async (req) => {
       throw new Error("Configuração está desabilitada")
     }
 
-    // Validar unit_id e condo_id
-    if (!config.unit_id || !config.condo_id) {
+    // ==========================================================================
+    // LOAD UNIT/CONDO CONFIG FROM app_config (table no longer stores on config)
+    // ==========================================================================
+    currentStep = "loading_unit_condo_config"
+
+    const { data: apiConfigs, error: apiConfigError } = await supabaseClient
+      .from("app_config")
+      .select("key, value, user_id")
+      .in("key", ["unit_id", "condo_id"])
+      .or(
+        config.user_id
+          ? `user_id.eq.${config.user_id},user_id.is.null`
+          : "user_id.is.null"
+      )
+
+    if (apiConfigError) {
+      throw new Error(`Erro ao buscar unit_id/condo_id: ${apiConfigError.message}`)
+    }
+
+    const getScopedValue = (key: string) => {
+      const userScoped = apiConfigs?.find(
+        (c) => c.key === key && c.user_id === config.user_id
+      )
+      const globalScoped = apiConfigs?.find(
+        (c) => c.key === key && c.user_id === null
+      )
+      return userScoped?.value || globalScoped?.value
+    }
+
+    const unitId = getScopedValue("unit_id")
+    const condoId = getScopedValue("condo_id")
+
+    if (!unitId || !condoId) {
       throw new Error(
-        "Configuração incompleta: unit_id e condo_id são obrigatórios"
+        "Configuração incompleta: unit_id ou condo_id não encontrados em app_config"
       )
     }
+
+    addLog("loading_unit_condo_config", "IDs de unidade/condomínio carregados", {
+      hasUnitId: !!unitId,
+      hasCondoId: !!condoId,
+    })
 
     // ==========================================================================
     // GET AUTH TOKEN
@@ -806,10 +841,10 @@ serve(async (req) => {
       method: "POST",
       url: listUrl,
       body: {
-        idUnidades: [config.unit_id],
+        idUnidades: [unitId],
         dtInicio: todayBRT,
         dtFim: todayBRT,
-        idCondominio: config.condo_id,
+        idCondominio: condoId,
         filtrarFila: 1,
       },
     }
@@ -817,8 +852,8 @@ serve(async (req) => {
     const listResult = await listReservations(
       authResult.access_token,
       todayBRT,
-      config.unit_id,
-      config.condo_id
+      unitId,
+      condoId
     )
 
     // Save response information
@@ -834,8 +869,8 @@ serve(async (req) => {
       message: listResult.msg,
       multipleResponse: listResult.multipleresponse,
       requestParams: {
-        unitId: config.unit_id,
-        condoId: config.condo_id,
+        unitId,
+        condoId,
         date: todayBRT,
       },
       dataStructure: {
@@ -1099,14 +1134,14 @@ serve(async (req) => {
     const duration = Date.now() - startTime
 
     // ==========================================================================
-    // UPDATE CONFIG (last_run_at)
+    // UPDATE CONFIG (last_executed_at)
     // ==========================================================================
     if (!isDryRun) {
       currentStep = "updating_config"
 
       await supabaseClient
         .from("auto_cancel_config")
-        .update({ last_run_at: new Date().toISOString() })
+        .update({ last_executed_at: new Date().toISOString() })
         .eq("id", config.id)
 
       addLog("updating_config", "Config atualizada com timestamp da execução")
@@ -1124,7 +1159,7 @@ serve(async (req) => {
       .eq("user_id", config.user_id)
       .maybeSingle()
 
-    const notificationEmail = emailConfig?.value
+    notificationEmail = emailConfig?.value || notificationEmail
 
     addLog("getting_notification_email", "E-mail de notificação obtido", {
       hasEmail: !!notificationEmail,
@@ -1304,10 +1339,24 @@ serve(async (req) => {
       )
 
       // SEND ERROR EMAIL
-      if (config?.notification_email && config?.notify_on_failure) {
+      let errorEmail = notificationEmail
+
+      // Se ainda não carregado e tivermos user_id, buscar app_config
+      if (!errorEmail && config?.user_id) {
+        const { data: errorEmailConfig } = await supabaseClient
+          .from("app_config")
+          .select("value")
+          .eq("key", "notification_email")
+          .eq("user_id", config.user_id)
+          .maybeSingle()
+
+        errorEmail = errorEmailConfig?.value || null
+      }
+
+      if (errorEmail && config?.notify_on_failure) {
         const subjectPrefix = isDryRun ? "🔍 [DRY RUN] " : ""
         const emailSent = await sendNotificationEmail(
-          config.notification_email,
+          errorEmail,
           `❌ ${subjectPrefix}Erro no Auto-Cancel`,
           generateErrorEmailHtml(
             errorMessage,
@@ -1328,7 +1377,7 @@ serve(async (req) => {
             ? "E-mail de erro enviado"
             : "Falha ao enviar e-mail de erro",
           {
-            email: config.notification_email,
+            email: errorEmail,
             sent: emailSent,
             type: "error",
           }

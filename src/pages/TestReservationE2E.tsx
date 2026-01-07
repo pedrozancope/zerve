@@ -26,16 +26,26 @@ const AVAILABLE_HOURS = Array.from({ length: 16 }, (_, i) => i + 6)
 
 export default function TestReservationE2E() {
   const [hour, setHour] = useState<string>("7")
+  const [reservationDate, setReservationDate] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ExecutionResult | null>(null)
 
   const handleTest = async () => {
+    if (!reservationDate) {
+      toast.error("Selecione uma data para a reserva")
+      return
+    }
+
     setLoading(true)
     setResult(null)
 
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      // Formatar data para MM/DD/YYYY
+      const [year, month, day] = reservationDate.split("-")
+      const formattedDate = `${month}/${day}/${year}`
 
       const res = await fetch(
         `${supabaseUrl}/functions/v1/execute-reservation`,
@@ -48,6 +58,7 @@ export default function TestReservationE2E() {
           body: JSON.stringify({
             test: true,
             hour: parseInt(hour, 10),
+            DT_RESERVA_RES: formattedDate,
           }),
         }
       )
@@ -101,6 +112,17 @@ export default function TestReservationE2E() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <label className="text-sm font-medium">Data da Reserva</label>
+              <input
+                type="date"
+                value={reservationDate}
+                onChange={(e) => setReservationDate(e.target.value)}
+                disabled={loading}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium">Horário da Reserva</label>
               <Select value={hour} onValueChange={setHour} disabled={loading}>
                 <SelectTrigger>
@@ -114,9 +136,6 @@ export default function TestReservationE2E() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Reserva para daqui a 10 dias
-              </p>
             </div>
 
             <Separator />
