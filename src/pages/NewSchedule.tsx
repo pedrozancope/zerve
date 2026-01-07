@@ -13,6 +13,11 @@ import {
   Plane,
   Zap,
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  CalendarClock,
+  Target,
+  Info,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,7 +32,6 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
@@ -39,6 +43,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { toast } from "sonner"
 import {
   DAY_NAMES_PT,
@@ -124,6 +133,58 @@ function ScheduleLogsSection({ scheduleId }: { scheduleId: string }) {
   )
 }
 
+// Seção colapsável com header estilizado
+function Section({
+  icon: Icon,
+  title,
+  description,
+  children,
+  defaultOpen = true,
+  badge,
+}: {
+  icon: React.ElementType
+  title: string
+  description?: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+  badge?: React.ReactNode
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors text-left">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">{title}</h3>
+                  {badge}
+                </div>
+                {description && (
+                  <p className="text-sm text-muted-foreground">{description}</p>
+                )}
+              </div>
+            </div>
+            {isOpen ? (
+              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            )}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 pt-2 border-t">{children}</div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  )
+}
+
 export default function NewSchedule() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -152,6 +213,7 @@ export default function NewSchedule() {
     "reservation_date" | "trigger_date"
   >("reservation_date")
   const [triggerDatetime, setTriggerDatetime] = useState("")
+  const [reservationDateOverride, setReservationDateOverride] = useState("")
 
   // Campos para Pre-flight (Teste de Voo)
   const [preflightEnabled, setPreflightEnabled] = useState(false)
@@ -169,15 +231,21 @@ export default function NewSchedule() {
 
   // Calcular dia da reserva automaticamente quando for trigger_date
   useEffect(() => {
-    if (triggerMode === "trigger_date" && triggerDatetime) {
-      const triggerDate = new Date(triggerDatetime)
-      const dayOfWeek = triggerDate.getDay()
+    if (triggerMode === "trigger_date") {
+      // Se houver override de data da reserva, usar ele; senão usar triggerDatetime
+      const base = reservationDateOverride
+        ? new Date(reservationDateOverride + "T00:00:00")
+        : triggerDatetime
+        ? new Date(triggerDatetime)
+        : null
+      if (!base) return
+      const dayOfWeek = base.getDay()
       setFormData((prev) => ({
         ...prev,
         reservationDayOfWeek: dayOfWeek,
       }))
     }
-  }, [triggerMode, triggerDatetime])
+  }, [triggerMode, triggerDatetime, reservationDateOverride])
 
   // Load schedule data if editing
   useEffect(() => {
@@ -217,6 +285,7 @@ export default function NewSchedule() {
       setTriggerMinute(parseInt(m) || 1)
     }
     setTriggerMode(schedule.triggerMode || "reservation_date")
+    setReservationDateOverride(schedule.reservationDateOverride || "")
     if (schedule.triggerDatetime) {
       // Converter de ISO (UTC) para formato datetime-local (timezone local)
       const utcDate = new Date(schedule.triggerDatetime)
@@ -297,6 +366,9 @@ export default function NewSchedule() {
         triggers.push({
           type: "main",
           date: mainTrigger,
+          reservationDate: reservationDateOverride
+            ? new Date(reservationDateOverride + "T00:00:00")
+            : new Date(mainTrigger),
         })
       }
     } else if (triggerMode === "reservation_date") {
@@ -451,6 +523,10 @@ export default function NewSchedule() {
       trigger_time: triggerTimeUTC,
       trigger_mode: triggerMode,
       trigger_datetime: triggerDatetimeISO,
+      reservation_date_override:
+        triggerMode === "trigger_date" && reservationDateOverride
+          ? reservationDateOverride
+          : null,
       cron_expression: cronExpression,
       frequency: formData.frequency,
       notify_on_success: formData.notifyOnSuccess,
@@ -509,319 +585,392 @@ export default function NewSchedule() {
           <p className="text-muted-foreground">
             {isEditMode
               ? "Atualize sua reserva recorrente"
-              : "Configure sua reserva recorrente"}
+              : "Configure sua reserva automática"}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Configuração
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome do agendamento</Label>
-                <Input
-                  id="name"
-                  placeholder="Ex: Tênis Domingo Manhã"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                />
-              </div>
+        <div className="grid lg:grid-cols-5 gap-6">
+          {/* Formulário - 3 colunas */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* SEÇÃO 1: O que reservar */}
+            <Section
+              icon={Target}
+              title="O que reservar"
+              description="Defina o dia e horário da quadra"
+            >
+              <div className="space-y-5">
+                {/* Nome */}
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome do agendamento</Label>
+                  <Input
+                    id="name"
+                    placeholder="Ex: Tênis Domingo Manhã"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    className="h-11"
+                  />
+                </div>
 
-              <Separator />
+                {/* Dia da Semana + Horário lado a lado */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Dia da reserva</Label>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {DAY_NAMES_PT_SHORT.map((day, index) => (
+                        <button
+                          key={day}
+                          type="button"
+                          disabled={triggerMode === "trigger_date"}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              reservationDayOfWeek: index,
+                            }))
+                          }
+                          className={`p-2 rounded-lg text-xs font-medium transition-all ${
+                            formData.reservationDayOfWeek === index
+                              ? "bg-primary text-primary-foreground shadow-md"
+                              : triggerMode === "trigger_date"
+                              ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                    {triggerMode === "trigger_date" && (
+                      <p className="text-xs text-muted-foreground">
+                        Definido pela data de disparo
+                      </p>
+                    )}
+                  </div>
 
-              {/* Day of Week */}
-              <div className="space-y-3">
-                <Label>
-                  Dia da reserva
-                  {triggerMode === "trigger_date" && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      (definido automaticamente pela data de disparo)
-                    </span>
-                  )}
-                </Label>
-                <div className="grid grid-cols-7 gap-2">
-                  {DAY_NAMES_PT_SHORT.map((day, index) => (
-                    <button
-                      key={day}
-                      type="button"
-                      disabled={triggerMode === "trigger_date"}
-                      onClick={() =>
+                  <div className="space-y-2">
+                    <Label>Horário da quadra</Label>
+                    <Select
+                      value={formData.timeSlotHour.toString()}
+                      onValueChange={(value) =>
                         setFormData((prev) => ({
                           ...prev,
-                          reservationDayOfWeek: index,
+                          timeSlotHour: parseInt(value),
                         }))
                       }
-                      className={`p-2 rounded-lg text-sm font-medium transition-colors ${
-                        formData.reservationDayOfWeek === index
-                          ? "bg-primary text-primary-foreground"
-                          : triggerMode === "trigger_date"
-                          ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                          : "bg-muted hover:bg-muted/80"
-                      }`}
                     >
-                      {day}
-                    </button>
-                  ))}
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIME_SLOTS.map((slot) => (
+                          <SelectItem
+                            key={slot.hour}
+                            value={slot.hour.toString()}
+                          >
+                            {slot.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
+            </Section>
 
-              {/* Time Slot */}
-              <div className="space-y-2">
-                <Label>Horário</Label>
-                <Select
-                  key={`timeslot-${formData.timeSlotHour}`}
-                  value={formData.timeSlotHour.toString()}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      timeSlotHour: parseInt(value),
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o horário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_SLOTS.map((slot) => (
-                      <SelectItem key={slot.hour} value={slot.hour.toString()}>
-                        {slot.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Frequency */}
-              <div className="space-y-3">
-                <Label>Frequência</Label>
-                <RadioGroup
-                  value={formData.frequency}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      frequency: value as typeof formData.frequency,
-                    }))
-                  }
-                  className="flex gap-4"
-                >
-                  {FREQUENCY_OPTIONS.map((option) => (
-                    <div
-                      key={option.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <RadioGroupItem value={option.value} id={option.value} />
-                      <Label htmlFor={option.value} className="font-normal">
-                        {option.label}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <Separator />
-
-              {/* Trigger Mode */}
-              <div className="space-y-3">
-                <Label>Modo de Disparo</Label>
+            {/* SEÇÃO 2: Quando Disparar */}
+            <Section
+              icon={CalendarClock}
+              title="Quando disparar"
+              description="Configure quando o sistema deve fazer a reserva"
+            >
+              <div className="space-y-5">
+                {/* Modo de Disparo */}
                 <RadioGroup
                   value={triggerMode}
-                  onValueChange={(value) =>
-                    setTriggerMode(value as "reservation_date" | "trigger_date")
-                  }
-                  className="space-y-2"
+                  onValueChange={(value) => {
+                    const v = value as "reservation_date" | "trigger_date"
+                    setTriggerMode(v)
+                    if (v === "trigger_date") {
+                      setFormData((prev) => ({ ...prev, frequency: "once" }))
+                    }
+                  }}
+                  className="grid sm:grid-cols-2 gap-3"
                 >
-                  <div className="flex items-start space-x-2 p-3 rounded-lg bg-muted/50 hover:bg-muted">
+                  <Label
+                    htmlFor="reservation_date"
+                    className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      triggerMode === "reservation_date"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/20"
+                    }`}
+                  >
                     <RadioGroupItem
                       value="reservation_date"
                       id="reservation_date"
-                      className="mt-1"
+                      className="mt-0.5"
                     />
-                    <div>
-                      <Label
-                        htmlFor="reservation_date"
-                        className="font-medium cursor-pointer"
-                      >
-                        Baseado na reserva (+10 dias)
-                      </Label>
+                    <div className="space-y-1">
+                      <span className="font-medium">Automático (+10 dias)</span>
                       <p className="text-xs text-muted-foreground">
-                        O sistema calcula automaticamente: dispara 10 dias antes
-                        da data da reserva
+                        Dispara 10 dias antes da reserva
                       </p>
                     </div>
-                  </div>
-                  <div className="flex items-start space-x-2 p-3 rounded-lg bg-muted/50 hover:bg-muted">
+                  </Label>
+
+                  <Label
+                    htmlFor="trigger_date"
+                    className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      triggerMode === "trigger_date"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/20"
+                    }`}
+                  >
                     <RadioGroupItem
                       value="trigger_date"
                       id="trigger_date"
-                      className="mt-1"
+                      className="mt-0.5"
                     />
-                    <div>
-                      <Label
-                        htmlFor="trigger_date"
-                        className="font-medium cursor-pointer"
-                      >
-                        Data/hora específica
-                      </Label>
+                    <div className="space-y-1">
+                      <span className="font-medium">Data específica</span>
                       <p className="text-xs text-muted-foreground">
-                        Você define quando o disparo deve ocorrer (útil para
-                        testes)
+                        Você escolhe quando disparar
                       </p>
                     </div>
-                  </div>
+                  </Label>
                 </RadioGroup>
-              </div>
 
-              {/* Trigger Time - só mostra no modo reservation_date */}
-              {triggerMode === "reservation_date" && (
-                <div className="space-y-2">
-                  <Label>Horário do Disparo</Label>
-                  <div className="flex gap-2">
-                    <Select
-                      value={triggerHour.toString()}
-                      onValueChange={(value) => setTriggerHour(parseInt(value))}
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue placeholder="Hora" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TRIGGER_HOURS.map((h) => (
-                          <SelectItem key={h} value={h.toString()}>
-                            {h.toString().padStart(2, "0")}h
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <span className="flex items-center">:</span>
-                    <Select
-                      value={triggerMinute.toString()}
-                      onValueChange={(value) =>
-                        setTriggerMinute(parseInt(value))
-                      }
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue placeholder="Min" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TRIGGER_MINUTES.map((m) => (
-                          <SelectItem key={m} value={m.toString()}>
-                            {m.toString().padStart(2, "0")}min
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {/* Campos condicionais por modo */}
+                {triggerMode === "reservation_date" ? (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Horário do disparo</Label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={triggerHour.toString()}
+                          onValueChange={(value) =>
+                            setTriggerHour(parseInt(value))
+                          }
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Hora" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TRIGGER_HOURS.map((h) => (
+                              <SelectItem key={h} value={h.toString()}>
+                                {h.toString().padStart(2, "0")}h
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="flex items-center text-muted-foreground">
+                          :
+                        </span>
+                        <Select
+                          value={triggerMinute.toString()}
+                          onValueChange={(value) =>
+                            setTriggerMinute(parseInt(value))
+                          }
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Min" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TRIGGER_MINUTES.map((m) => (
+                              <SelectItem key={m} value={m.toString()}>
+                                {m.toString().padStart(2, "0")}min
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Recomendado: 00:01
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Frequência</Label>
+                      <Select
+                        value={formData.frequency}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            frequency: value as typeof formData.frequency,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FREQUENCY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Por padrão 00:01 (logo após a abertura das vagas)
-                  </p>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Data e hora do disparo</Label>
+                        <Input
+                          type="datetime-local"
+                          value={triggerDatetime}
+                          onChange={(e) => setTriggerDatetime(e.target.value)}
+                          className="h-11"
+                          min={(() => {
+                            const now = new Date()
+                            now.setMinutes(now.getMinutes() + 1)
+                            const year = now.getFullYear()
+                            const month = String(now.getMonth() + 1).padStart(
+                              2,
+                              "0"
+                            )
+                            const day = String(now.getDate()).padStart(2, "0")
+                            const hours = String(now.getHours()).padStart(
+                              2,
+                              "0"
+                            )
+                            const minutes = String(now.getMinutes()).padStart(
+                              2,
+                              "0"
+                            )
+                            return `${year}-${month}-${day}T${hours}:${minutes}`
+                          })()}
+                        />
+                      </div>
 
-              {/* Trigger Datetime - só mostra no modo trigger_date */}
-              {triggerMode === "trigger_date" && (
-                <div className="space-y-2">
-                  <Label>Data e Hora do Disparo</Label>
-                  <Input
-                    type="datetime-local"
-                    value={triggerDatetime}
-                    onChange={(e) => setTriggerDatetime(e.target.value)}
-                    min={(() => {
-                      const now = new Date()
-                      // Adicionar 1 minuto ao horário atual
-                      now.setMinutes(now.getMinutes() + 1)
-                      // Formatar para datetime-local no timezone local
-                      const year = now.getFullYear()
-                      const month = String(now.getMonth() + 1).padStart(2, "0")
-                      const day = String(now.getDate()).padStart(2, "0")
-                      const hours = String(now.getHours()).padStart(2, "0")
-                      const minutes = String(now.getMinutes()).padStart(2, "0")
-                      return `${year}-${month}-${day}T${hours}:${minutes}`
-                    })()}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Selecione quando o disparo deve ocorrer. A reserva será
-                    feita para o mesmo dia e horário escolhido.
-                  </p>
-                </div>
-              )}
+                      <div className="space-y-2">
+                        <Label>
+                          Data da reserva{" "}
+                          <span className="text-muted-foreground font-normal">
+                            (opcional)
+                          </span>
+                        </Label>
+                        <Input
+                          type="date"
+                          value={reservationDateOverride}
+                          onChange={(e) =>
+                            setReservationDateOverride(e.target.value)
+                          }
+                          className="h-11"
+                          min={(() => {
+                            const now = new Date()
+                            const year = now.getFullYear()
+                            const month = String(now.getMonth() + 1).padStart(
+                              2,
+                              "0"
+                            )
+                            const day = String(now.getDate()).padStart(2, "0")
+                            return `${year}-${month}-${day}`
+                          })()}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Se vazio, reserva para o mesmo dia
+                        </p>
+                      </div>
+                    </div>
 
-              <Separator />
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                      <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-amber-800 dark:text-amber-200">
+                        Executa apenas uma vez. Ideal para testes ou reservas
+                        pontuais.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Section>
 
-              {/* Notifications */}
+            {/* SEÇÃO 3: Notificações */}
+            <Section
+              icon={Bell}
+              title="Notificações"
+              description="Receba alertas por e-mail"
+            >
               <div className="space-y-4">
-                <Label className="flex items-center gap-2">
-                  <Bell className="h-4 w-4" />
-                  Notificações
-                </Label>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
                     <div>
-                      <p className="text-sm font-medium">Sucesso</p>
+                      <p className="text-sm font-medium">Reserva confirmada</p>
                       <p className="text-xs text-muted-foreground">
-                        Notificar quando a reserva for confirmada
+                        Quando for bem-sucedida
                       </p>
                     </div>
-                    <Switch
-                      checked={formData.notifyOnSuccess}
-                      onCheckedChange={(checked) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          notifyOnSuccess: checked,
-                        }))
-                      }
-                    />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <Switch
+                    checked={formData.notifyOnSuccess}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        notifyOnSuccess: checked,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <XCircle className="h-5 w-5 text-red-500" />
                     <div>
-                      <p className="text-sm font-medium">Falha</p>
+                      <p className="text-sm font-medium">Erro na reserva</p>
                       <p className="text-xs text-muted-foreground">
-                        Notificar quando houver erro na reserva
+                        Quando houver falha
                       </p>
                     </div>
-                    <Switch
-                      checked={formData.notifyOnFailure}
-                      onCheckedChange={(checked) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          notifyOnFailure: checked,
-                        }))
-                      }
-                    />
                   </div>
+                  <Switch
+                    checked={formData.notifyOnFailure}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        notifyOnFailure: checked,
+                      }))
+                    }
+                  />
                 </div>
               </div>
+            </Section>
 
-              <Separator />
-
-              {/* Pre-flight (Teste de Voo) */}
+            {/* SEÇÃO 4: Pre-flight */}
+            <Section
+              icon={Plane}
+              title="Teste de Voo (Pre-flight)"
+              description="Validação prévia do token"
+              defaultOpen={preflightEnabled}
+              badge={
+                preflightEnabled ? (
+                  <Badge variant="success" className="text-xs">
+                    Ativo
+                  </Badge>
+                ) : null
+              }
+            >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2">
-                    <Plane className="h-4 w-4" />
-                    Teste de Voo (Pre-flight)
-                  </Label>
+                  <div>
+                    <p className="text-sm font-medium">Ativar Pre-flight</p>
+                    <p className="text-xs text-muted-foreground">
+                      Testa o token antes do disparo
+                    </p>
+                  </div>
                   <Switch
                     checked={preflightEnabled}
                     onCheckedChange={setPreflightEnabled}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Valida e atualiza o token de autenticação antes do disparo
-                  agendado
-                </p>
 
                 {preflightEnabled && (
-                  <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+                  <div className="space-y-4 pt-3 border-t">
                     <div className="space-y-2">
                       <Label className="text-sm">Horas antes do disparo</Label>
                       <Select
@@ -830,47 +979,29 @@ export default function NewSchedule() {
                           setPreflightHoursBefore(parseInt(value))
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="h-10">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 8, 10, 12, 24].map((hours) => (
+                          {[1, 2, 3, 4, 5, 6, 8, 12, 24].map((hours) => (
                             <SelectItem key={hours} value={hours.toString()}>
                               {hours} hora{hours > 1 ? "s" : ""} antes
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        O teste será executado {preflightHoursBefore} hora
-                        {preflightHoursBefore > 1 ? "s" : ""} antes do horário
-                        de disparo
-                      </p>
                     </div>
 
-                    <div className="space-y-3">
-                      <Label className="text-sm">
-                        Notificações do Pre-flight
-                      </Label>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">Sucesso</p>
-                          <p className="text-xs text-muted-foreground">
-                            Notificar quando o pre-flight for bem-sucedido
-                          </p>
-                        </div>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                        <span className="text-sm">Notificar sucesso</span>
                         <Switch
                           checked={preflightNotifyOnSuccess}
                           onCheckedChange={setPreflightNotifyOnSuccess}
                         />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">Falha</p>
-                          <p className="text-xs text-muted-foreground">
-                            Notificar quando houver erro no pre-flight
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                        <span className="text-sm">Notificar falha</span>
                         <Switch
                           checked={preflightNotifyOnFailure}
                           onCheckedChange={setPreflightNotifyOnFailure}
@@ -880,201 +1011,200 @@ export default function NewSchedule() {
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </Section>
 
-          {/* Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Preview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Summary */}
-              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
-                <h4 className="font-medium mb-2">Resumo do agendamento</h4>
-                <div className="space-y-1 text-sm">
-                  <p>
-                    <span className="text-muted-foreground">Reserva:</span>{" "}
-                    <span className="font-medium">
-                      {DAY_NAMES_PT[formData.reservationDayOfWeek]} às{" "}
-                      {selectedTimeSlot?.displayName}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Disparo:</span>{" "}
-                    <span className="font-medium">
-                      {triggerMode === "trigger_date" && triggerDatetime
-                        ? new Date(triggerDatetime).toLocaleString("pt-BR")
-                        : `${DAY_NAMES_PT[triggerDay]} às ${triggerHour
-                            .toString()
-                            .padStart(2, "0")}:${triggerMinute
-                            .toString()
-                            .padStart(2, "0")}`}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Modo:</span>{" "}
-                    <Badge
-                      variant={
-                        triggerMode === "trigger_date" ? "warning" : "default"
-                      }
-                      className="text-xs"
-                    >
-                      {triggerMode === "reservation_date"
-                        ? "Automático (+10 dias)"
-                        : "Data específica"}
-                    </Badge>
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Frequência:</span>{" "}
-                    <span className="font-medium capitalize">
-                      {formData.frequency}
-                    </span>
-                  </p>
-                </div>
+            {/* Logs - apenas em edição */}
+            {isEditMode && id && (
+              <div className="rounded-xl border bg-card p-4">
+                <ScheduleLogsSection scheduleId={id} />
               </div>
+            )}
+          </div>
 
-              {/* Próximos Disparos - Para ambos os modos */}
-              {upcomingTriggers.length > 0 && (
-                <div className="space-y-3">
-                  <Label className="flex items-center gap-2">
-                    <Zap className="h-4 w-4" />
-                    {triggerMode === "trigger_date"
-                      ? "Disparos Programados"
-                      : "Próximos Disparos"}
-                  </Label>
-                  <div className="space-y-2">
-                    {upcomingTriggers.map((trigger, index) => {
-                      const isPreflight = trigger.type === "preflight"
-                      const reservationDate = trigger.reservationDate
-                        ? new Date(trigger.reservationDate)
-                        : null
-
-                      return (
-                        <div
-                          key={index}
-                          className={`flex items-center justify-between p-3 rounded-lg border-2 ${
-                            isPreflight
-                              ? "bg-sky-50 dark:bg-sky-950 border-sky-200 dark:border-sky-800"
-                              : "bg-warning/10 border-warning/20"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg ${
-                                isPreflight
-                                  ? "bg-sky-200 dark:bg-sky-800 text-sky-700 dark:text-sky-300"
-                                  : "bg-warning/20 text-warning"
-                              }`}
-                            >
-                              {isPreflight ? (
-                                <Plane className="h-5 w-5" />
-                              ) : (
-                                <>
-                                  <span className="text-[10px] font-medium">
-                                    {DAY_NAMES_PT_SHORT[trigger.date.getDay()]}
-                                  </span>
-                                  <span className="text-sm font-bold">
-                                    {trigger.date.getDate()}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium">
-                                  {isPreflight ? "🧪 Pre-flight" : "🔔 Disparo"}
-                                  : {trigger.date.toLocaleDateString("pt-BR")}
-                                </p>
-                                {isPreflight && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300"
-                                  >
-                                    Teste
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {trigger.date.toLocaleTimeString("pt-BR", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}{" "}
-                                BRT
-                              </p>
-                            </div>
-                          </div>
-                          {reservationDate && !isPreflight && (
-                            <div className="text-right">
-                              <Badge variant="success">
-                                🎾{" "}
-                                {reservationDate.toLocaleDateString("pt-BR", {
+          {/* Preview - 2 colunas, sticky */}
+          <div className="lg:col-span-2">
+            <div className="lg:sticky lg:top-6 space-y-4">
+              <Card className="border-2 border-dashed">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Preview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Resumo */}
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                    <h4 className="font-semibold text-sm mb-3">Resumo</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Reserva:</span>
+                        <span className="font-medium">
+                          {DAY_NAMES_PT[formData.reservationDayOfWeek]} às{" "}
+                          {selectedTimeSlot?.displayName}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Disparo:</span>
+                        <span className="font-medium text-right">
+                          {triggerMode === "trigger_date" && triggerDatetime
+                            ? new Date(triggerDatetime).toLocaleString(
+                                "pt-BR",
+                                {
                                   day: "2-digit",
                                   month: "2-digit",
-                                })}
-                              </Badge>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {selectedTimeSlot?.displayName}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )
+                            : `${DAY_NAMES_PT[triggerDay]} às ${triggerHour
+                                .toString()
+                                .padStart(2, "0")}:${triggerMinute
+                                .toString()
+                                .padStart(2, "0")}`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Modo:</span>
+                        <Badge
+                          variant={
+                            triggerMode === "trigger_date"
+                              ? "warning"
+                              : "default"
+                          }
+                          className="text-xs"
+                        >
+                          {triggerMode === "reservation_date"
+                            ? "Automático"
+                            : "Específico"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Frequência:
+                        </span>
+                        <span className="font-medium">
+                          {
+                            FREQUENCY_OPTIONS.find(
+                              (f) => f.value === formData.frequency
+                            )?.label
+                          }
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {/* Info */}
-              <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground">
-                {triggerMode === "reservation_date" ? (
-                  <p>
-                    ℹ️ O sistema dispara 10 dias antes da reserva, às{" "}
-                    {triggerHour.toString().padStart(2, "0")}:
-                    {triggerMinute.toString().padStart(2, "0")} (horário de
-                    Brasília).
-                  </p>
-                ) : (
-                  <p>
-                    ⚠️ Modo de data específica: o disparo ocorrerá na data/hora
-                    selecionada. A reserva será feita para +10 dias após o
-                    disparo.
-                  </p>
-                )}
-              </div>
+                  {/* Timeline de Disparos */}
+                  {upcomingTriggers.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        Próximos Disparos
+                      </h4>
+                      <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                        {upcomingTriggers.map((trigger, index) => {
+                          const isPreflight = trigger.type === "preflight"
+                          const reservationDate = trigger.reservationDate
+                            ? new Date(trigger.reservationDate)
+                            : null
 
-              {/* Submit */}
-              <Button
-                type="submit"
-                className="w-full"
-                size="lg"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Criando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Criar Agendamento
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                          return (
+                            <div
+                              key={index}
+                              className={`flex items-center gap-3 p-3 rounded-lg border ${
+                                isPreflight
+                                  ? "bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800"
+                                  : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                              }`}
+                            >
+                              <div
+                                className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg text-xs ${
+                                  isPreflight
+                                    ? "bg-sky-200 dark:bg-sky-800 text-sky-700 dark:text-sky-300"
+                                    : "bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300"
+                                }`}
+                              >
+                                {isPreflight ? (
+                                  <Plane className="h-4 w-4" />
+                                ) : (
+                                  <>
+                                    <span className="font-semibold">
+                                      {trigger.date.getDate()}
+                                    </span>
+                                    <span className="text-[10px]">
+                                      {
+                                        DAY_NAMES_PT_SHORT[
+                                          trigger.date.getDay()
+                                        ]
+                                      }
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-medium truncate">
+                                    {isPreflight ? "Pre-flight" : "Disparo"}
+                                  </p>
+                                  {isPreflight && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] px-1.5 py-0"
+                                    >
+                                      Teste
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {trigger.date.toLocaleDateString("pt-BR")} às{" "}
+                                  {trigger.date.toLocaleTimeString("pt-BR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              </div>
+                              {reservationDate && !isPreflight && (
+                                <Badge
+                                  variant="success"
+                                  className="text-xs whitespace-nowrap"
+                                >
+                                  🎾{" "}
+                                  {reservationDate.toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                  })}
+                                </Badge>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-        {/* Logs Section - Only in Edit Mode */}
-        {isEditMode && id && (
-          <div className="mt-6">
-            <ScheduleLogsSection scheduleId={id} />
+                  {/* Botão de Submit */}
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        {isEditMode ? "Salvando..." : "Criando..."}
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-5 w-5 mr-2" />
+                        {isEditMode ? "Salvar Alterações" : "Criar Agendamento"}
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        )}
+        </div>
       </form>
 
       {/* AlertDialog para confirmação de dias consecutivos */}

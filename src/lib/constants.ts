@@ -52,8 +52,6 @@ export type ExecutionStatus =
 export const FREQUENCY_OPTIONS = [
   { value: "once", label: "Uma vez" },
   { value: "weekly", label: "Semanal" },
-  { value: "biweekly", label: "Quinzenal" },
-  { value: "monthly", label: "Mensal" },
 ] as const
 
 export type Frequency = (typeof FREQUENCY_OPTIONS)[number]["value"]

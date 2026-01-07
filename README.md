@@ -91,21 +91,19 @@ Two **independent concepts** — understand the difference!
 
 How often the reservation repeats:
 
-| Frequency    | Behavior                      |
-| ------------ | ----------------------------- |
-| **Once**     | Runs once, then stops         |
-| **Weekly**   | Every week, same day          |
-| **Biweekly** | Every 2 weeks                 |
-| **Monthly**  | Every month, same day of week |
+| Frequency  | Behavior              |
+| ---------- | --------------------- |
+| **Once**   | Runs once, then stops |
+| **Weekly** | Every week, same day  |
 
 ### 🎮 Trigger Mode
 
 How to calculate **when** to fire:
 
-| Mode                 | How it works                                   |
-| -------------------- | ---------------------------------------------- |
-| **Reservation Date** | "I want Sundays" → System picks Thursday 00:01 |
-| **Specific Date**    | "Fire on Dec 25th" → Reserves Jan 4th          |
+| Mode                 | How it works                                                                  |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **Reservation Date** | "I want Sundays" → System picks Thursday 00:01                                |
+| **Specific Date**    | "Fire on Dec 25th" → Reserve same day by default or a chosen date (once-only) |
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -117,11 +115,11 @@ How to calculate **when** to fire:
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│              SPECIFIC DATE MODE                             │
-│   "Fire on Dec 25th" → System obeys                        │
+│              SPECIFIC DATE MODE (ONCE)                      │
+│   "Fire on Dec 25th 22:00" → System obeys                  │
 │                                                             │
-│   Dec 25 ──[10 days]──→ Jan 04 (reservation)               │
-│   Jan 01 ──[10 days]──→ Jan 11 (if weekly)                 │
+│   Default: Reserve on Dec 25 (same day)                     │
+│   Optional: Set reservation date override (e.g., Dec 26)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 

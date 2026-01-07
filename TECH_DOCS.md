@@ -132,17 +132,21 @@ O sistema suporta dois modos de disparo:
 
 #### Modo A: `reservation_date` (Padrão)
 
-Usuário define o dia desejado (ex: Domingo às 7h) → Sistema calcula automaticamente que disparo ocorre na Quinta às 00:01 → Recorrência: Weekly, Biweekly, Monthly, Once
+Usuário define o dia desejado (ex: Domingo às 7h) → Sistema calcula automaticamente que disparo ocorre na Quinta às 00:01 → Recorrência: Weekly, Once
 
-#### Modo B: `trigger_date` (Data Específica)
+#### Modo B: `trigger_date` (Data/Hora Específica — execução única)
 
-Usuário define data/hora exata (ex: 25/12/2025 às 00:01) → Sistema obedece data exata fornecida → Reserva será feita MESMA data do disparo
+Usuário define data/hora exata (ex: 25/12/2025 às 22:00) → Sistema obedece data/hora informada. Por padrão, a reserva é feita para o MESMO dia do disparo. Opcionalmente, o usuário pode informar uma data de reserva diferente via `reservation_date_override` (ex.: 26/12/2025).
+
+Restrições:
+
+- Recorrência BLOQUEADA: somente `once` é permitido neste modo (enforced por constraint no banco e pela UI).
 
 **Onde é aplicada:**
 
-- ✅ **Frontend**: `src/pages/NewSchedule.tsx` — seletor de modo
-- ✅ **Edge Function**: Lógica de cálculo em `execute-reservation/index.ts`
-- ✅ **Supabase**: Campo `schedules.trigger_mode` (ENUM)
+- ✅ **Frontend**: `src/pages/NewSchedule.tsx` — seletor de modo (rótulos: "Baseado na data da reserva (+10 dias)" e "Data/Hora específica") e campo opcional "Data da Reserva" quando `trigger_date`.
+- ✅ **Edge Function**: `execute-reservation/index.ts` — `calculateReservationDate()` prioriza `reservation_date_override` quando `trigger_mode = 'trigger_date'`.
+- ✅ **Supabase**: Campo `schedules.trigger_mode` (ENUM) e coluna nova `reservation_date_override DATE`.
 
 **⚠️ CRÍTICO:** Ao editar schedule, preservar o modo original. Não converter automaticamente entre modos.
 
@@ -152,20 +156,16 @@ Usuário define data/hora exata (ex: 25/12/2025 às 00:01) → Sistema obedece d
 
 **RN-003: Tipos de Recorrência Suportados**
 
-⚠️ **AVISO:** `biweekly` e `monthly` são **simulações visuais do frontend** — backend executa `weekly`
+⚠️ **Atualização:** Frequências suportadas na UI e oficialmente: `once` e `weekly`. Opções `biweekly` e `monthly` foram removidas do frontend.
 
-| Frequência | Implementação       | Status Real                                             |
-| ---------- | ------------------- | ------------------------------------------------------- |
-| `once`     | ✅ Completa         | Auto-desativa após execução (confirmado)                |
-| `weekly`   | ✅ Completa         | Executa TODA semana, mesmo dia/horário                  |
-| `biweekly` | ⚠️ Frontend calcula | **Validação pendente** — frontend +14d, backend weekly  |
-| `monthly`  | ⚠️ Frontend calcula | **Validação pendente** — frontend +1mês, backend weekly |
+| Frequência | Implementação | Status Real                              |
+| ---------- | ------------- | ---------------------------------------- |
+| `once`     | ✅ Completa   | Auto-desativa após execução (confirmado) |
+| `weekly`   | ✅ Completa   | Executa TODA semana, mesmo dia/horário   |
 
-**⚠️ VALIDAÇÃO NECESSÁRIA:**
+Regras adicionais:
 
-- `biweekly`: Confirmar se executa a cada 2 semanas ou toda semana
-- `monthly`: Confirmar se respeita "mesmo dia do mês" ou toda semana
-- **Recomendação:** Adicionar testes E2E para estas frequências antes de usar em produção
+- `trigger_date` (data/hora específica) → apenas `once` (constraint `schedules_trigger_date_once_only`).
 
 **Implementação:**
 
@@ -806,6 +806,7 @@ trigger_day_of_week INTEGER (0-6)
 trigger_mode VARCHAR CHECK ('reservation_date', 'trigger_date')
 trigger_datetime TIMESTAMP WITH TIME ZONE
 trigger_time TIME DEFAULT '00:01:00'
+reservation_date_override DATE NULL -- Opcional quando trigger_mode='trigger_date'
 
 -- pg_cron
 cron_expression VARCHAR(100)
@@ -835,6 +836,7 @@ updated_at TIMESTAMP WITH TIME ZONE
 ```
 
 **RLS:** ativo, políticas por `user_id`
+**Constraint adicional:** `schedules_trigger_date_once_only` obriga `frequency='once'` quando `trigger_mode='trigger_date'`.
 
 ---
 

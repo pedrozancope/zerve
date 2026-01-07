@@ -16,6 +16,7 @@ export interface Schedule {
   triggerTime: string // '00:01:00'
   triggerMode: "reservation_date" | "trigger_date" // modo de cálculo do disparo
   triggerDatetime?: string // data/hora específica quando trigger_mode = 'trigger_date'
+  reservationDateOverride?: string // YYYY-MM-DD quando trigger_mode = 'trigger_date'
   cronExpression: string
   pgCronJobId?: number
   frequency: "once" | "weekly" | "biweekly" | "monthly"

@@ -31,6 +31,8 @@ function mapScheduleFromDB(
     triggerTime: row.trigger_time,
     triggerMode: (row as any).trigger_mode || "reservation_date",
     triggerDatetime: (row as any).trigger_datetime || undefined,
+    reservationDateOverride:
+      (row as any).reservation_date_override || undefined,
     cronExpression: row.cron_expression,
     pgCronJobId: row.pg_cron_job_id || undefined,
     frequency: row.frequency,

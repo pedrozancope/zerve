@@ -142,6 +142,7 @@ function calculateReservationDate(
     trigger_mode?: string
     trigger_datetime?: string
     reservation_day_of_week?: number
+    reservation_date_override?: string // YYYY-MM-DD (DATE no Postgres)
   } | null,
   isTestMode: boolean = false
 ): string {
@@ -154,14 +155,24 @@ function calculateReservationDate(
     return `${month}/${day}/${year}`
   }
 
-  // Se o schedule tem modo "trigger_date" com datetime específico
-  // A reserva deve ser feita para o DIA da data de disparo (não +10)
-  if (schedule?.trigger_mode === "trigger_date" && schedule.trigger_datetime) {
-    const triggerDate = new Date(schedule.trigger_datetime)
-    const month = String(triggerDate.getMonth() + 1).padStart(2, "0")
-    const day = String(triggerDate.getDate()).padStart(2, "0")
-    const year = triggerDate.getFullYear()
-    return `${month}/${day}/${year}`
+  // Se o schedule tem modo "trigger_date" pode haver override da data da reserva
+  if (schedule?.trigger_mode === "trigger_date") {
+    // 1) Se houver override (YYYY-MM-DD), usa-o diretamente
+    if (schedule.reservation_date_override) {
+      const [year, month, day] = schedule.reservation_date_override.split("-")
+      if (year && month && day) {
+        return `${month.padStart(2, "0")}/${day.padStart(2, "0")}/${year}`
+      }
+    }
+
+    // 2) Senão, usa o dia do trigger_datetime (mesmo dia)
+    if (schedule.trigger_datetime) {
+      const triggerDate = new Date(schedule.trigger_datetime)
+      const month = String(triggerDate.getMonth() + 1).padStart(2, "0")
+      const day = String(triggerDate.getDate()).padStart(2, "0")
+      const year = triggerDate.getFullYear()
+      return `${month}/${day}/${year}`
+    }
   }
 
   // Modo padrão "reservation_date": usa +10 dias (regra do condomínio)
@@ -1119,12 +1130,21 @@ serve(async (req) => {
       )
     }
 
-    // Calculate actual reservation date for database (ISO format)
-    const targetDate = new Date()
-    if (!isTestMode) {
-      targetDate.setDate(targetDate.getDate() + 10)
+    // Calcular a data da reserva em ISO (YYYY-MM-DD) a partir do valor usado na API
+    // reservationDate está em MM/DD/YYYY; evitar timezone convertendo manualmente
+    const [mm, dd, yyyy] = (reservationDate || "").split("/")
+    let reservationDateISO =
+      mm && dd && yyyy
+        ? `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`
+        : ""
+
+    if (!reservationDateISO) {
+      const fallbackTarget = new Date()
+      if (!isTestMode) {
+        fallbackTarget.setDate(fallbackTarget.getDate() + 10)
+      }
+      reservationDateISO = fallbackTarget.toISOString().split("T")[0]
     }
-    const reservationDateISO = targetDate.toISOString().split("T")[0]
 
     // SEMPRE salvar o log de execução (teste ou não)
     currentStep = "saving_execution_log"
