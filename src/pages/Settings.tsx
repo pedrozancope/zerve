@@ -104,8 +104,8 @@ export default function Settings() {
 
   // Função para processar e validar o token
   const processToken = (value: string): string => {
-    // Remove espaços em branco (início, fim e meio)
-    return value.replace(/\s/g, "")
+    // Remove espaços em branco, aspas simples, aspas duplas e dois pontos
+    return value.replace(/[\s'":`]/g, "")
   }
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
