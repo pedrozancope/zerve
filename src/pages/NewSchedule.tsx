@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate, useParams, Link } from "react-router-dom"
 import {
   ArrowLeft,
@@ -196,7 +196,6 @@ export default function NewSchedule() {
   const createSchedule = useCreateSchedule()
   const updateSchedule = useUpdateSchedule()
   const { warningEnabled, minDaysBetween } = useConsecutiveDaysConfig()
-  const hasLoadedSchedule = useRef<string | null>(null)
   const [formData, setFormData] = useState<ScheduleFormData>({
     name: "",
     timeSlotHour: 7,
@@ -251,25 +250,16 @@ export default function NewSchedule() {
   useEffect(() => {
     // Só carrega se tiver schedule e estiver em modo de edição
     if (!schedule || !isEditMode) return
-    // Evita loop infinito - só carrega uma vez por schedule.id
-    if (hasLoadedSchedule.current === schedule.id) return
-    // Aguarda timeSlots carregar
-    if (timeSlots.length === 0) return
 
-    // Buscar o horário do timeSlot pelo ID (mais confiável)
-    const foundSlot = timeSlots.find((ts: any) => ts.id === schedule.timeSlotId)
-    const timeSlotHour = foundSlot?.hour || schedule.timeSlot?.hour
-
-    if (!timeSlotHour) {
-      return
-    }
-
-    // Marca como carregado para este schedule
-    hasLoadedSchedule.current = schedule.id
+    // Buscar o horário do timeSlot - primeiro tenta schedule.timeSlot (relacionamento), depois timeSlots array
+    const timeSlotHour =
+      schedule.timeSlot?.hour ??
+      timeSlots.find((ts: any) => ts.id === schedule.timeSlotId)?.hour ??
+      7 // valor padrão
 
     setFormData({
       name: schedule.name,
-      timeSlotHour,
+      timeSlotHour: timeSlotHour,
       reservationDayOfWeek: schedule.reservationDayOfWeek,
       frequency: schedule.frequency,
       notifyOnSuccess: schedule.notifyOnSuccess,
@@ -301,7 +291,7 @@ export default function NewSchedule() {
     setPreflightHoursBefore(schedule.preflightHoursBefore ?? 4)
     setPreflightNotifyOnSuccess(schedule.preflightNotifyOnSuccess ?? false)
     setPreflightNotifyOnFailure(schedule.preflightNotifyOnFailure ?? true)
-  }, [schedule, isEditMode, timeSlots])
+  }, [schedule?.id])
 
   // Calcular próximas datas baseado no modo
   const nextDates =
@@ -653,6 +643,7 @@ export default function NewSchedule() {
                   <div className="space-y-2">
                     <Label>Horário da quadra</Label>
                     <Select
+                      key={`timeslot-${formData.timeSlotHour}`}
                       value={formData.timeSlotHour.toString()}
                       onValueChange={(value) =>
                         setFormData((prev) => ({
