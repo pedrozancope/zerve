@@ -979,7 +979,9 @@ serve(async (req) => {
         const areaName = reservation.st_nome_are
 
         if (isDryRun) {
-          // Modo dry run: simular cancelamento
+          // DRY RUN: registra request/response simulados para depuração E2E (não chama a API)
+          const cancelUrl = `https://speedassessoria.superlogica.net/areadocondomino/atual/reservas/cancelar`
+
           addLog(
             "cancelling_reservations",
             `[SIMULAÇÃO] Cancelamento simulado: ${areaName}`,
@@ -990,6 +992,30 @@ serve(async (req) => {
               simulated: true,
             }
           )
+
+          // Registrar request esperado (sem enviar)
+          executionLog[executionLog.length - 1].request = {
+            method: "POST",
+            url: cancelUrl,
+            body: {
+              ID_RESERVA_RES: reservationId,
+              ST_MOTIVOCANCELAMENTO_RES: config.cancellation_reason,
+              ID_AREA_ARE: areaId,
+            },
+          }
+
+          // Mockar uma resposta de sucesso parecida com a API real
+          executionLog[executionLog.length - 1].response = {
+            status: "200",
+            msg: "[DRY RUN] Operação simulada com sucesso",
+            multipleresponse: "true",
+            data: [
+              {
+                status: "200",
+                msg: "[DRY RUN] Reserva simulada como cancelada",
+              },
+            ],
+          }
 
           cancelResults.push({
             id: reservationId,
