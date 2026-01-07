@@ -12,6 +12,7 @@ import Settings from "@/pages/Settings"
 import AutoCancel from "@/pages/AutoCancel"
 
 import TestReservationE2E from "@/pages/TestReservationE2E"
+import ExternalReservations from "@/pages/ExternalReservations"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +46,7 @@ function App() {
             <Route path="/logs" element={<Logs />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/auto-cancel" element={<AutoCancel />} />
+            <Route path="/reservations" element={<ExternalReservations />} />
             <Route path="/test-e2e" element={<TestReservationE2E />} />
           </Route>
         </Routes>

@@ -525,6 +525,7 @@ serve(async (req) => {
           reservationsFound: totalReservations,
           apiStatus: listResult.status,
           apiMessage: listResult.msg,
+          apiResponse: listResult,
         },
       }),
       {

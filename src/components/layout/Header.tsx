@@ -9,6 +9,7 @@ import {
   User,
   PlayCircle,
   XCircle,
+  List,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -18,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth"
 const navItems = [
   { path: "/", label: "Dashboard", icon: Home },
   { path: "/schedules", label: "Agendamentos", icon: Calendar },
+  { path: "/reservations", label: "Reservas", icon: List },
   { path: "/auto-cancel", label: "Auto-Cancel", icon: XCircle },
   { path: "/logs", label: "Logs", icon: FileText },
   { path: "/test-e2e", label: "Teste E2E", icon: PlayCircle },

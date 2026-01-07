@@ -6,15 +6,16 @@ import {
   Settings,
   PlayCircle,
   XCircle,
+  List,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { path: "/", label: "Home", icon: Home },
-  { path: "/schedules", label: "Agendamentos", icon: Calendar },
+  { path: "/schedules", label: "Agenda", icon: Calendar },
+  { path: "/reservations", label: "Reservas", icon: List },
   { path: "/auto-cancel", label: "Cancel", icon: XCircle },
   { path: "/logs", label: "Logs", icon: FileText },
-  { path: "/test-e2e", label: "Teste", icon: PlayCircle },
   { path: "/settings", label: "Config", icon: Settings },
 ]
 
