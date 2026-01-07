@@ -4,7 +4,6 @@ import {
   Calendar,
   FileText,
   Settings,
-  PlayCircle,
   XCircle,
   List,
 } from "lucide-react"
